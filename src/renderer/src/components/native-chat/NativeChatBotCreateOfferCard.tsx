@@ -37,7 +37,7 @@ import {
   NativeChatCardFrame,
   NativeChatCardStatus
 } from './NativeChatCardFrame'
-import { NativeChatCardFact } from './NativeChatAutomationCardDetails'
+import { NativeChatCardFact } from './NativeChatCardFact'
 import { NativeChatExpandable } from './messages/disclosure/NativeChatExpandable'
 import { NativeChatOfferActions, useNativeChatOffer } from './NativeChatOfferActions'
 import { useNativeChatDisclosure } from './messages/disclosure/native-chat-disclosure-store'
