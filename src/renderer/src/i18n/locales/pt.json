@@ -22078,8 +22078,6 @@
         "label": "Caixa de mensagem e solicitações"
       },
       "automationSaved": {
-        "resultsInRuns": "resultados em cada execução",
-        "paused": "pausada",
         "webhookHint": "Aponte seu serviço para esta URL",
         "gettingUrl": "Obtendo a URL…",
         "editDraft": "Altere “{{name}}” para que ",
@@ -22092,10 +22090,8 @@
         "agent": "Agente",
         "runNow": "Executar agora",
         "loading": "Carregando",
-        "deleted": "Esta automação foi excluída",
         "loadFailed": "Não foi possível ler esta automação",
-        "openFullPage": "Abrir página",
-        "onAgent": "em {{name}}"
+        "openFullPage": "Abrir página"
       },
       "mcp": {
         "status": {
