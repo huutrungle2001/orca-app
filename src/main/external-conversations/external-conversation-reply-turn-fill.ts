@@ -29,7 +29,8 @@ export async function fillRecoveredTurn(
     agentOf: (sessionId: string) => string
   }
 ): Promise<{ kind: 'unresolved' | 'cut'; stamps: AgentJournalConnectorDelivery[] }> {
-  const outcome = readAgentJournalTurnOutcome(readAgentJournalTurn(turn.body))
+  const record = readAgentJournalTurn(turn.body)
+  const outcome = readAgentJournalTurnOutcome(record)
   const items = snapshot.items.filter((item) => item.sequence <= turn.sequence)
   const opener = await readEndedChatTurnOpener(
     () => chat.journalReads(sessionId),
@@ -53,6 +54,7 @@ export async function fillRecoveredTurn(
       stamps,
       ...(opener ? { openerItemId: opener.itemId } : {}),
       outcome,
+      ...(record?.startedAt ? { postsSince: record.startedAt } : {}),
       ...turnReplyOf(snapshot.items, turn.itemId, deps.isBot(sessionId)),
       links: [],
       ...(outcome === 'failure'

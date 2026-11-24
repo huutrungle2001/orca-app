@@ -40,7 +40,7 @@ export type EmptyTurnRetry = {
   /** Holds an empty turn's rows for its one retry and sends it; false fills them as they are. */
   hold: (turn: EndedTurnReplies, own: readonly JournalConnectorReplyRow[]) => Promise<boolean>
   /** The chat tried a post of its own during the live turn: its earlier words aren't its answer. */
-  posted: (turn: Pick<EndedTurnReplies, 'sessionId' | 'turnStartedAt'>) => boolean
+  posted: (turn: Pick<EndedTurnReplies, 'sessionId' | 'turnStartedAt' | 'postsSince'>) => boolean
   /** A row held for a retry not yet sent: recovery leaves it. */
   sending: (row: Pick<JournalConnectorReplyRow, 'account' | 'deliveryId'>) => boolean
 }
@@ -57,9 +57,9 @@ export function emptyTurnRetry(deps: {
   settled: (sessionId: string) => void
 }): EmptyTurnRetry {
   const sending = new Set<string>()
-  // A turn whose start isn't known (recovery) counts any post this chat tried since the app started.
-  const posted = (turn: Pick<EndedTurnReplies, 'sessionId' | 'turnStartedAt'>) =>
-    deps.postedSince(turn.sessionId, turn.turnStartedAt ?? 0)
+  // Recovery knows the turn's start from its record; with neither, any post since the app started.
+  const posted = (turn: Pick<EndedTurnReplies, 'sessionId' | 'turnStartedAt' | 'postsSince'>) =>
+    deps.postedSince(turn.sessionId, turn.turnStartedAt ?? turn.postsSince ?? 0)
   return {
     posted,
     sending: (row) => sending.has(keyOf(row)),

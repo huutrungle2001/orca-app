@@ -11,9 +11,16 @@ it('takes back only a refused attempt, leaving earlier and later ones', () => {
   refused()
   expect([attempts.since('chat', 10), attempts.since('chat', 15)]).toEqual([true, false])
   now = 30
-  const late = attempts.attempted('chat')
+  const first = attempts.attempted('chat')
   now = 40
+  const second = attempts.attempted('chat')
+  first()
+  second()
+  expect(attempts.since('chat', 25)).toBe(false)
+  now = 50
+  const late = attempts.attempted('chat')
+  now = 60
   attempts.attempted('chat')
   late()
-  expect(attempts.since('chat', 35)).toBe(true)
+  expect(attempts.since('chat', 55)).toBe(true)
 })
