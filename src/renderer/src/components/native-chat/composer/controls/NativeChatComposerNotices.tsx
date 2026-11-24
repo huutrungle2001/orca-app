@@ -16,12 +16,11 @@ export function NativeChatComposerNotices({
   notices: readonly NativeChatComposerNotice[]
   className?: string
 }): React.JSX.Element {
-  if (notices.length === 0) {
+  const visible = notices.filter((notice) => !notice.hidden)
+  if (visible.length === 0) {
     return <ul aria-live="polite" />
   }
-  const ordered = [...notices].sort(
-    (a, b) => Number(b.kind === 'error') - Number(a.kind === 'error')
-  )
+  const ordered = visible.sort((a, b) => Number(b.kind === 'error') - Number(a.kind === 'error'))
   return (
     <ul
       aria-live="polite"
@@ -46,7 +45,8 @@ export function NativeChatPromptSlotNotices({
   return (
     <div
       className={cn(
-        notices.length > 0 && 'mx-auto w-full max-w-(--chat-content-max-width) px-3 pt-2 sm:px-4'
+        notices.some((notice) => !notice.hidden) &&
+          'mx-auto w-full max-w-(--chat-content-max-width) px-3 pt-2 sm:px-4'
       )}
     >
       <NativeChatComposerNotices notices={notices} />

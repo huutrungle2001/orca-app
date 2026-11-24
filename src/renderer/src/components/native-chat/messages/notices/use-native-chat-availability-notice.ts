@@ -1,7 +1,7 @@
 import {
   nativeChatSetupAction,
   type NativeChatHostSetup
-} from '../../host-access/native-chat-host-setup'
+} from '../../host-access/native-chat-host-setup-view'
 import { structuredAgentLabel } from '@/lib/agent-session/launch/structured-agent-session-launch-label'
 import { useMemo, useState } from 'react'
 import type { AgentSessionUnavailable } from '../../../../../../shared/agent-session/failures/agent-session-availability'
@@ -104,13 +104,6 @@ export function useNativeChatAvailabilityNotice(input: {
   }
   const launchWords = input.launchFailure && agentSessionRefusalReasonWords(input.launchFailure)
   const launchReason = launchWords && 'fact' in launchWords ? launchWords.fact : null
-  if (
-    launchReason === unavailable.reason ||
-    rowReason === unavailable.reason ||
-    sendReason === unavailable.reason
-  ) {
-    return null
-  }
   const agentName = structuredAgentLabel(input.agent)
   const signIn = nativeChatSignInNoticeView(
     {
@@ -121,6 +114,12 @@ export function useNativeChatAvailabilityNotice(input: {
     },
     t
   )
+  if (
+    launchReason === unavailable.reason ||
+    (!signIn && (rowReason === unavailable.reason || sendReason === unavailable.reason))
+  ) {
+    return null
+  }
   // No dismiss: it clears once signed in or once a send says why it wasn't sent.
   if (signIn) {
     return {

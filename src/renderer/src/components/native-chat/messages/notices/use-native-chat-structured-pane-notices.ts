@@ -1,3 +1,4 @@
+import { useNativeChatSignInVisibility } from '../../host-access/use-native-chat-sign-in-visibility'
 import type { AgentSessionAccountKind } from '../../../../../../shared/agent-session/failures/agent-session-availability'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -9,7 +10,7 @@ import {
 import { useNativeChatHostSetup } from '../../host-access/native-chat-host-setup'
 import {
   nativeChatAgySignedOutBeforeSend,
-  nativeChatSignInAccount
+  nativeChatSignInContext
 } from '../../host-access/native-chat-sign-in-account'
 import { useAntigravityChatAuthDetection } from '@/runtime/provider-accounts/sign-in/antigravity-chat-auth-detection'
 import { useNativeChatAvailabilityNotice } from './use-native-chat-availability-notice'
@@ -93,25 +94,39 @@ export function useNativeChatStructuredPaneNotices({
   const agySignedOut = useAntigravityChatAuthDetection(agyHost)?.agySignedOut
   const unavailable =
     controller.unavailable ?? nativeChatAgySignedOutBeforeSend(agySignedOut, controller.submissions)
+  const { account, failure } = nativeChatSignInContext({
+    unavailable,
+    launchDetails: details,
+    items: controller.journalItems,
+    submissions: controller.submissions,
+    kickoff: kickoffSignIn
+  })
   const setup = useNativeChatHostSetup({
     ...props,
     worktreeId: ownerWorktreeId,
-    // The host names which account is signed out; a managed-account sign-in can't fix the system one.
-    account: nativeChatSignInAccount({
-      unavailable,
-      launchDetails: details,
-      items: controller.journalItems,
-      submissions: controller.submissions,
-      kickoff: kickoffSignIn
-    }),
+    failureKey: failure?.key,
+    transcriptFailureId: failure?.rowId,
+    onSignInRechecked: demandModelCatalog,
+    needsSignIn:
+      failure !== null ||
+      unavailable?.reason === 'notSignedIn' ||
+      (launchFailed && details?.reason === 'notSignedIn') ||
+      kickoffOwed,
+    account,
     failure: provisionalLaunch.failure,
     startFailures,
     journalItems: controller.journalItems,
     onRechecked
   })
+  const visibility = useNativeChatSignInVisibility(setup)
   const availability = useNativeChatAvailabilityNotice({
     // While Install shows, it already says the agent is missing and offers the one fix.
-    unavailable: installing ? null : unavailable,
+    unavailable: installing
+      ? null
+      : (unavailable ??
+        (failure && !setup.resolved
+          ? { reason: 'notSignedIn', account: failure.fact.account }
+          : null)),
     setup,
     agent: props.agent,
     wslDistro: continuation.view.wslDistro,
@@ -146,15 +161,19 @@ export function useNativeChatStructuredPaneNotices({
       wslHostOfferSettingUp
     },
     t
-  )
+  ).filter((notice) => !notice.signIn || !setup.resolved)
   if (hostNotice) {
     notices.push(hostNotice)
   }
-  // One Sign in on screen: while the composer's notice or Antigravity's sign-in strip has it,
-  // transcript rows only say what wasn't sent.
+  for (const notice of notices) {
+    if (notice.signIn) {
+      notice.hidden = !visibility.banner
+    }
+  }
   const signInInComposer =
-    install.signIn !== null || notices.some((notice) => notice.signIn !== undefined)
-  // A new bot's setup card offers the kickoff's sign-in, so the composer doesn't repeat it.
+    install.signIn !== null ||
+    kickoffOwed ||
+    notices.some((notice) => notice.signIn && !notice.hidden)
   const shown = kickoffOwed ? notices.filter((notice) => notice.signIn === undefined) : notices
   const rowSetup = useMemo(() => ({ ...setup, signInInComposer }), [setup, signInInComposer])
   return { setup: rowSetup, notices: shown }

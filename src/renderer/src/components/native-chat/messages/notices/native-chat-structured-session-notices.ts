@@ -21,7 +21,7 @@ import { agentSessionWriteNoticeText } from './agent-session-write-notice-text'
 import {
   nativeChatSetupAction,
   type NativeChatHostSetup
-} from '../../host-access/native-chat-host-setup'
+} from '../../host-access/native-chat-host-setup-view'
 import { nativeChatCliUpdateAction } from '../../host-access/native-chat-cli-update'
 import type {
   NativeChatComposerNotice,
@@ -127,7 +127,7 @@ function nativeChatLaunchNotice(
     action:
       nativeChatSetupAction(failure?.details?.reason, setup, t) ??
       nativeChatCliUpdateAction(cliTooOld, setup, t) ??
-      (!retryable
+      (!retryable || details?.reason === 'notSignedIn'
         ? undefined
         : {
             label: t('auto.components.native.chat.NativeChatLaunchRetry.retry', 'Retry'),

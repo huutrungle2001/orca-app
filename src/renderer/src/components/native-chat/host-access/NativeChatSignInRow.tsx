@@ -1,3 +1,4 @@
+import { useNativeChatSignInCandidate } from './use-native-chat-sign-in-visibility'
 import { AlertCircle, CircleCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -8,12 +9,15 @@ import type { AgentSessionAccountKind } from '../../../../../shared/agent-sessio
 import { sayAgentSessionFailureTranslated } from '../messages/notices/agent-session-failure-words-text'
 import {
   isNativeChatFailureRowResolved,
+  NativeChatHostSetupContext,
+  type NativeChatHostSetup,
   useNativeChatHostSetupView
-} from './native-chat-host-setup'
+} from './native-chat-host-setup-view'
 import {
   nativeChatNotSignedInSentence,
+  nativeChatWasNotSignedInSentence,
   nativeChatSignInNoticeView,
-  type NativeChatSignInButton,
+  type NativeChatSignInButton as NativeChatSignInButtonView,
   type NativeChatSignInNoticeView
 } from './native-chat-sign-in-notice'
 
@@ -53,12 +57,16 @@ export function NativeChatSignInRow({
           ? t('components.native-chat.signInNotice.signedIn', 'Signed in. Send again.')
           : (view.steps ?? sentence)}
       </p>
-      {view.button && !view.signedIn ? <SignInButton button={view.button} /> : null}
+      {view.button && !view.signedIn ? <NativeChatSignInButton button={view.button} /> : null}
     </div>
   )
 }
 
-function SignInButton({ button }: { button: NativeChatSignInButton }): React.JSX.Element {
+export function NativeChatSignInButton({
+  button
+}: {
+  button: NativeChatSignInButtonView
+}): React.JSX.Element {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -67,6 +75,8 @@ function SignInButton({ button }: { button: NativeChatSignInButton }): React.JSX
           size="xs"
           variant="outline-strong"
           disabled={button.busy}
+          aria-disabled={button.busy}
+          aria-busy={button.busy}
           aria-description={button.description}
           onClick={button.onClick}
         >
@@ -76,6 +86,33 @@ function SignInButton({ button }: { button: NativeChatSignInButton }): React.JSX
       </TooltipTrigger>
       <TooltipContent>{button.description}</TooltipContent>
     </Tooltip>
+  )
+}
+
+export function NativeChatSignInAnnouncement({
+  message
+}: {
+  message: string | undefined
+}): React.JSX.Element {
+  return (
+    <span role="status" aria-live="polite" className="sr-only">
+      {message}
+    </span>
+  )
+}
+
+export function NativeChatHostSetupProvider({
+  value,
+  children
+}: {
+  value: NativeChatHostSetup
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <NativeChatHostSetupContext.Provider value={value}>
+      {children}
+      <NativeChatSignInAnnouncement message={value.announcement} />
+    </NativeChatHostSetupContext.Provider>
   )
 }
 
@@ -104,8 +141,14 @@ export function NativeChatTranscriptSignInNotice({
   const t = useTranslate()
   const setup = useNativeChatHostSetupView()
   const agent = agentName ?? sayAgentSessionFailureTranslated('theAgent')
-  // A resolved failure is history, and the composer's Sign in already fixes a current one.
-  const plain = setup?.signInInComposer || isNativeChatFailureRowResolved(setup, rowId)
+  const resolved = setup?.resolved || isNativeChatFailureRowResolved(setup, rowId)
+  const eligible = !resolved && (!setup?.transcriptFailureId || setup.transcriptFailureId === rowId)
+  const candidate = useNativeChatSignInCandidate(
+    'transcript',
+    rowId,
+    Boolean(eligible && setup?.signIn)
+  )
+  const plain = setup?.signInInComposer || resolved || !eligible || !candidate.selected
   const view = plain
     ? null
     : nativeChatSignInNoticeView({ kind: 'notSignedIn', agent, account, setup }, t)
@@ -113,7 +156,7 @@ export function NativeChatTranscriptSignInNotice({
     return fallback(false)
   }
   return (
-    <div className={cn('min-w-0 space-y-2', className)}>
+    <div ref={candidate.anchor} className={cn('min-w-0 space-y-2', className)}>
       {view ? (
         <NativeChatSignInRow
           view={view}
@@ -124,13 +167,15 @@ export function NativeChatTranscriptSignInNotice({
         <div className="flex min-w-0 items-center gap-2 text-xs text-chat-foreground-faint">
           <AlertCircle aria-hidden className="size-3.5 shrink-0" />
           <p className={TEXT}>
-            {sent
-              ? t(
-                  'components.native-chat.signInNotice.notSent',
-                  "Not sent: {{agent}} isn't signed in.",
-                  { agent }
-                )
-              : nativeChatNotSignedInSentence(agent, t)}
+            {resolved
+              ? nativeChatWasNotSignedInSentence(agent, t)
+              : sent
+                ? t(
+                    'components.native-chat.signInNotice.notSent',
+                    "Not sent: {{agent}} isn't signed in.",
+                    { agent }
+                  )
+                : nativeChatNotSignedInSentence(agent, t)}
           </p>
         </div>
       )}

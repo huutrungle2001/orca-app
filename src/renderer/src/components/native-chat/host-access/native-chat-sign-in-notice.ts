@@ -5,7 +5,7 @@ import { agentSessionSetupFor } from '../../../../../shared/agent-session/lifecy
 import type { AgentSessionAccountKind } from '../../../../../shared/agent-session/failures/agent-session-availability'
 import type { AgentSessionFailureFact } from '../../../../../shared/agent-session/failures/agent-session-failure'
 import { agentSessionFailureSentence } from '../../../../../shared/agent-session/failures/agent-session-failure-words'
-import type { NativeChatHostSetup, NativeChatSignIn } from './native-chat-host-setup'
+import type { NativeChatHostSetup, NativeChatSignIn } from './native-chat-host-setup-view'
 
 export type NativeChatSignInButton = {
   label: string
@@ -24,6 +24,15 @@ export type NativeChatSignInNoticeView = {
 
 export function nativeChatNotSignedInSentence(agentName: string, t: Translate = translate): string {
   return t('components.native-chat.signInNotice.notSignedIn', "{{agent}} isn't signed in.", {
+    agent: agentName
+  })
+}
+
+export function nativeChatWasNotSignedInSentence(
+  agentName: string,
+  t: Translate = translate
+): string {
+  return t('components.native-chat.signInNotice.wasNotSignedIn', "{{agent}} wasn't signed in.", {
     agent: agentName
   })
 }
@@ -118,10 +127,12 @@ function signInDescription(
   t: Translate
 ): string {
   if (!signIn.loginCommand) {
-    return t(
-      'components.native-chat.signInNotice.signsInClaudeAccount',
-      'Signs in this Claude account'
-    )
+    return entry?.agent === 'codex'
+      ? t('components.native-chat.signInNotice.signsInCodexAccount', 'Signs in this Codex account')
+      : t(
+          'components.native-chat.signInNotice.signsInClaudeAccount',
+          'Signs in this Claude account'
+        )
   }
   // Claude's system login is a wrapper script; name the command the user would recognize.
   const command = entry?.agent === 'claude' ? entry.loginCommand.join(' ') : signIn.loginCommand
