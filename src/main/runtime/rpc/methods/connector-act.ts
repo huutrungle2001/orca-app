@@ -260,8 +260,12 @@ export const CONNECTOR_ACT_METHOD = defineMethod({
       },
       signal
     )
-    // Refused outright, by the source or the cloud: nothing reached the thread.
-    if (answer.ok ? !answer.value.ok : answer.status !== null && answer.status < 500) {
+    // Refused outright, by the source or the cloud: nothing reached the thread. An uncertain post
+    // may have, so it stays counted.
+    const certain = answer.ok
+      ? !answer.value.ok && answer.value.refusal !== 'post_uncertain'
+      : answer.status !== null && answer.status < 500 && answer.error !== 'post_uncertain'
+    if (certain) {
       refused()
     }
     if (!answer.ok) {
