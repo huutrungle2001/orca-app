@@ -237,7 +237,10 @@ export const CONNECTOR_ACT_METHOD = defineMethod({
       )
     }
     const toSlack = actionGoesToSlack({ verb, ref, title: args.title, conversation })
-    if (verb === 'reply' || (toSlack && (verb === 'post' || verb === 'attach'))) {
+    // Only a post into the thread the chat answers is its own answer; one elsewhere is other work.
+    const intoThread =
+      verb === 'reply' || ((verb === 'post' || verb === 'attach') && !ref && conversation !== null)
+    if (intoThread) {
       connectorPostAttempts.attempted(chatPaneKey(sessionId))
     }
     const answer = await postConnectorAction(

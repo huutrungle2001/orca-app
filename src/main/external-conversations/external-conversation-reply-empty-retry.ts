@@ -57,8 +57,9 @@ export function emptyTurnRetry(deps: {
   settled: (sessionId: string) => void
 }): EmptyTurnRetry {
   const sending = new Set<string>()
+  // A turn whose start isn't known (recovery) counts any post this chat tried since the app started.
   const posted = (turn: Pick<EndedTurnReplies, 'sessionId' | 'turnStartedAt'>) =>
-    turn.turnStartedAt !== undefined && deps.postedSince(turn.sessionId, turn.turnStartedAt)
+    deps.postedSince(turn.sessionId, turn.turnStartedAt ?? 0)
   return {
     posted,
     sending: (row) => sending.has(keyOf(row)),

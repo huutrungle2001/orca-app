@@ -1,7 +1,7 @@
-// When each chat, by its pane key, last tried to post into Slack itself (`orca bot reply`, or a
-// connector post, reply or attach), noted before the cloud call: an empty turn that tried is never
-// retried, whether the post landed, failed or may have landed. Memory only: after a restart no live
-// turn end retries anything.
+// When each chat, by its pane key, last tried to post into the thread it answers itself (`orca bot
+// reply`, or a connector post or attach there), noted before the cloud call: an empty turn that
+// tried is never retried, and its words before its last tool aren't its answer, whether the post
+// landed, failed or may have landed. Memory only: after a restart no live turn end retries anything.
 
 // One entry per chat that posted; past this many, the longest idle goes first.
 const MAX_CHATS = 1000

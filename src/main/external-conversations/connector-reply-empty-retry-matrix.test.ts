@@ -104,6 +104,16 @@ describe('an empty turn is asked once more, from its live end only', () => {
     expect(p.outcomes()).toEqual({ d1: { outcome: 'answered', prose: 'Here it is.', head: 'd1' } })
   })
 
+  it('at boot, a chat that posted into its thread keeps its earlier words out of the answer', async () => {
+    const p = start({ bot: true, retry: { posted: true, send: send('accepted') } })
+    admit(p.db, 'm1', asked('d1'))
+    const said = p.turn('item:t1', 'm1', 'completed', 'Here it is.')
+    p.show([p.message('m1'), ...said.slice(0, 1), tool('item:t1', 60), ...said.slice(1)])
+    await p.recovery.boot()
+    expect(asks).toHaveLength(0)
+    expect(p.outcomes().d1?.outcome).toBe('no_answer')
+  })
+
   it('never asks when the chat tried a post of its own in the turn', async () => {
     const p = start({ bot: true, retry: { posted: true, send: send('accepted') } })
     admit(p.db, 'm1', asked('d1'))
