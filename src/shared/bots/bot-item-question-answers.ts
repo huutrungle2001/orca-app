@@ -135,10 +135,10 @@ function answeredLines(
 
 // Hosts keep the waiting ask this pairs: a change to what it pairs bumps WAITING_ASK_RULES
 // (src/main/bots/bot-item-waiting-ask-keep.ts), and one to what events can't change it updates waitingAskChange there.
-/** The item as a view read it: `waitingAsk` and `lastEventId` come from the host's read of the item,
- *  never from the host's own pairing. */
+/** The item as a view read it: `waitingAsk`, `lastEventId` and `question` come from the host's read of
+ *  the item, never from the host's own pairing. */
 export type BotItemPairingItem = Pick<BotItem, 'status' | 'waitingAsk'> &
-  Partial<Pick<BotItem, 'lastEventId'>>
+  Partial<Pick<BotItem, 'lastEventId' | 'question'>>
 
 export function botItemQuestionPairing(
   item: BotItemPairingItem,
@@ -217,11 +217,13 @@ export function botItemQuestionPairing(
     }
   }
   // Only the latest ask waits, so each answer has one question to go to. Events read after the item
-  // (a reopen and an ask since it closed) are the newer word on whether it is closed.
-  const ahead = eventsAhead(item, events)
+  // (a reopen and an ask since it closed) are the newer word on whether it is closed; read before it
+  // (an answer or a later ask since), their ask waits only while the item still names it.
+  const read = eventsRead(item, events)
   if (
     open?.entry.answers.includes(null) &&
-    (ahead || (item.status !== 'done' && item.status !== 'canceled')) &&
+    (read === 'ahead' || (item.status !== 'done' && item.status !== 'canceled')) &&
+    (read !== 'behind' || itemNamesAsk(item, open.id)) &&
     !hostAsksLater(item.waitingAsk, open.id)
   ) {
     open.entry.waiting = true
@@ -229,12 +231,27 @@ export function botItemQuestionPairing(
   return { questions, replies }
 }
 
-/** The events hold one newer than the item's own read of its last: they were read after it. */
-function eventsAhead(item: BotItemPairingItem, events: readonly BotItemEvent[]): boolean {
+/** Every event bumps the item's last one, so events whose newest is past it were read after the item,
+ *  and ones short of it before. */
+function eventsRead(
+  item: BotItemPairingItem,
+  events: readonly BotItemEvent[]
+): 'ahead' | 'behind' | null {
   const last = item.lastEventId === undefined ? null : parseBotItemEventId(item.lastEventId)
   const newest = events.at(-1)
   const read = newest ? parseBotItemEventId(newest.id) : null
-  return last !== null && read !== null && read > last
+  if (last === null || read === null || read === last) {
+    return null
+  }
+  return read > last ? 'ahead' : 'behind'
+}
+
+/** The item's read names the ask still waiting: as its waiting ask, or, from a host that names none,
+ *  as its question. */
+function itemNamesAsk(item: BotItemPairingItem, askId: string): boolean {
+  return item.waitingAsk === undefined
+    ? item.question?.eventId === askId
+    : item.waitingAsk === askId
 }
 
 /** The host's item names a later ask than the latest these events hold: they were read before it was

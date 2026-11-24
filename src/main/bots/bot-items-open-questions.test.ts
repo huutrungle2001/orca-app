@@ -251,6 +251,52 @@ it('replies to an ask made after a reopen that the item read, closed, predates',
   expect(store.get(uid)?.status).toBe('working')
 })
 
+it('offers no reply target for an ask the item read, newer than the Activity, no longer waits on', () => {
+  const { store, uid, ask, comment, view, hostItem, boxSend } = item()
+  ask(['Merge PR #22?'])
+  const readUpTo = store.events(uid, 0, 200).at(-1)!.id
+  // Since the Activity was read, the agent asked again and that ask was answered: nothing waits.
+  const second = ask(['Merge PR #22 and #23?'])
+  comment('Yes, both', second)
+  expect(hostItem()).toMatchObject({ status: 'working', question: null })
+  expect(hostItem().waitingAsk).toBeUndefined()
+  const read = view(0, readUpTo)
+  expect(read.replyingTo).toBeNull()
+  expect(read.waitingAsk).toBeNull()
+  expect(read.waitingComments).toEqual([])
+  expect(read.needsYouKey).toBeNull()
+  expect(read.lead).toBeUndefined()
+  // The words are a comment of their own: nothing on the host takes them as an answer.
+  expect(boxSend('Thanks', read)).toEqual({
+    questionId: undefined,
+    plain: false,
+    answers: undefined
+  })
+  expect(store.get(uid)?.status).toBe('working')
+})
+
+it('keeps a note sent with no line named out of an earlier ask, after a later Needs you comment', () => {
+  const { store, uid, ask, view, hostItem, boxSend, lastComment } = item()
+  const asked = ask(['Which accent color?'])
+  // The agent asks again in prose, with no question lines; the earlier ask's line stays open.
+  store.set(uid, { status: 'needs_you', comment: 'Also, should the badge stay?' }, AGENT, NOW)
+  expect(hostItem().waitingAsk).toBe(botItemEventId(asked))
+  // The newest page read starts after the earlier ask: the box names no line.
+  const read = view(asked)
+  expect(read.replyingTo).toBeNull()
+  expect(boxSend('A plain note, not an answer.', read)).toEqual({
+    questionId: undefined,
+    plain: true,
+    answers: undefined
+  })
+  const note = lastComment()
+  expect(note.data.plain).toBe(true)
+  // Read whole, the note is a comment of its own: it answers no line and quotes no question.
+  const after = view()
+  expect(after.asks.get(botItemEventId(asked))?.answers).toEqual([null])
+  expect(after.quotes.has(botItemEventId(note.id))).toBe(false)
+})
+
 it('offers no reply target for an ask the item closed after its Activity was read', () => {
   const { store, uid, ask, view } = item()
   ask(['Merge PR #22?'])
