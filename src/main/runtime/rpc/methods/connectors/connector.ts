@@ -71,7 +71,7 @@ export const CONNECTOR_METHODS = [
         cloud?.cloudFeatures()?.has(CONNECTOR_REPLIES_OUTBOX_FEATURE) === true
           ? { answerDeliveryId: target.answerDeliveryId }
           : {}
-      const refused = connectorPostAttempts.attempted(paneKey)
+      const refused = connectorPostAttempts.attempted(paneKey, replyId)
       const sent = await cloud?.reply({
         replyId,
         conversation,

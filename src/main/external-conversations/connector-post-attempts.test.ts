@@ -25,4 +25,10 @@ it('takes back only a refused attempt, leaving earlier and later ones', () => {
   expect(attempts.since('chat', 55)).toBe(true)
   // A later turn's post never counts against an earlier turn that ended before it.
   expect(attempts.since('chat', 45, 55)).toBe(false)
+  // A queued post checked again is the same post: refusing it takes back the first try too.
+  now = 70
+  attempts.attempted('chat', 'post-1')
+  now = 80
+  attempts.attempted('chat', 'post-1')()
+  expect(attempts.since('chat', 65)).toBe(false)
 })

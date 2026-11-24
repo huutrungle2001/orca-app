@@ -244,7 +244,9 @@ export const CONNECTOR_ACT_METHOD = defineMethod({
       !staging &&
       (verb === 'reply' ||
         ((verb === 'post' || verb === 'attach') && !ref && conversation !== null))
-    const refused = intoThread ? connectorPostAttempts.attempted(chatPaneKey(sessionId)) : () => {}
+    const refused = intoThread
+      ? connectorPostAttempts.attempted(chatPaneKey(sessionId), args.postId)
+      : () => {}
     const answer = await postConnectorAction(
       cloud,
       {
