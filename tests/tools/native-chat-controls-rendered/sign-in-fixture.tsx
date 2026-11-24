@@ -15,7 +15,7 @@ import { useNativeChatSignInVisibility } from '@/components/native-chat/host-acc
 import { NativeChatQueuedMessageCard } from '@/components/native-chat/queue/NativeChatQueuedMessageCard'
 import { agentSessionUnresolvedFailureRows } from '../../../src/shared/agent-session/failures/agent-session-visible-failures'
 import { agentSessionFailureFact } from '../../../src/shared/agent-session/failures/agent-session-failure'
-import { agentSessionFailureSentence } from '../../../src/shared/agent-session/failures/agent-session-failure-words'
+import { agentSessionFailureWords } from '../../../src/shared/agent-session/failures/agent-session-failure-words'
 import type { AgentJournalRenderItem } from '../../../src/shared/agent-session/journal/agent-session-journal-types'
 import { AGENT_SESSION_MODEL_CATALOG_CONFIRM_SIGN_IN_RUNTIME_CAPABILITY } from '../../../src/shared/agent-session/capabilities/structured-agent-session-surface-capabilities'
 
@@ -31,8 +31,7 @@ const olderRow: AgentJournalRenderItem = {
   body: {
     kind: 'status',
     tone: 'error',
-    text: agentSessionFailureSentence(managedFailure, 'row', { agentName: 'Codex' }),
-    failure: managedFailure
+    ...agentSessionFailureWords(managedFailure, { surface: 'row', agentName: 'Codex' })
   }
 }
 const latest = nativeChatSignInContext({
