@@ -254,6 +254,11 @@ export function botItemNeedsYouEntryKey(
   item: Pick<BotItem, 'question' | 'waitingAsk'>,
   entries: readonly BotItemActivityEntry[]
 ): string | null {
+  // The ask the Activity shows waiting, read after the item named an earlier one.
+  const live = botItemLiveAskKey(entries)
+  if (live !== null) {
+    return live
+  }
   const questionId = item.waitingAsk ?? item.question?.eventId
   if (questionId !== undefined) {
     return (

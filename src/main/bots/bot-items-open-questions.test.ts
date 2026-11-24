@@ -9,9 +9,11 @@ import {
   parseBotItemEventId,
   type BotItemEvent
 } from '../../shared/bots/bot-items'
-import { botItemActivity } from '../../shared/bots/bot-item-activity'
+import { botItemActivity, botItemNeedsYouEntryKey } from '../../shared/bots/bot-item-activity'
 import { botItemQuestionView } from '../../shared/bots/bot-item-ask'
 import {
+  botItemBoxReply,
+  botItemLeadAskId,
   botItemQuestionPairing,
   botItemWaitingAsk,
   botItemWaitingLine
@@ -70,6 +72,7 @@ function item(path = ':memory:') {
               store.events(uid, row.questionEvent - 1, 1)[0]!.data
             ),
       links: [],
+      lastEventId: botItemEventId(row.lastEventId),
       ...(waitingAsk ? { waitingAsk } : {})
     }
   }
@@ -89,24 +92,33 @@ function item(path = ':memory:') {
         at: createdAt
       }))
     const pairing = botItemQuestionPairing(shown, events)
+    const entries = botItemActivity(shown, events)
     return {
+      shown,
       replyingTo: botItemWaitingLine(shown, events),
+      // Where the header's Reply leads, and the ask earlier pages are read for.
+      needsYouKey: botItemNeedsYouEntryKey(shown, entries),
+      lead: botItemLeadAskId(shown, events),
       waitingAsk: botItemWaitingAsk(shown, events)?.askId ?? null,
       asks: pairing.questions,
       quotes: pairing.replies,
-      waitingComments: botItemActivity(shown, events).flatMap((entry) =>
+      waitingComments: entries.flatMap((entry) =>
         entry.kind === 'comment' && entry.waiting ? [entry.event.id] : []
       )
     }
   }
   const lastComment = () =>
     store.events(uid, 0, 200).findLast((event) => event.kind === 'commented')!
-  // The comment box's send of typed words, as it goes out: naming the question its "Replying to"
-  // names; with none named, a comment that names no question and isn't sent as plain.
-  const boxSend = (text: string, replyingTo: { eventId: string } | null) => {
-    const questionId = replyingTo ? parseBotItemEventId(replyingTo.eventId)! : undefined
-    store.ownerComment(uid, text, OWNER, [], NOW, undefined, questionId, false)
-    return { questionId: replyingTo?.eventId, answers: lastComment().data.answers }
+  // The comment box's send of typed words as it goes out (botItemBoxReply, as the box's send reads
+  // it), with its "Replying to" left on the line the view names; and what the host made of it.
+  const boxSend = (
+    text: string,
+    { shown, replyingTo }: Pick<ReturnType<typeof view>, 'shown' | 'replyingTo'>
+  ) => {
+    const { questionId, plain } = botItemBoxReply(shown, replyingTo, replyingTo?.id ?? null)
+    const named = questionId === undefined ? undefined : parseBotItemEventId(questionId)!
+    store.ownerComment(uid, text, OWNER, [], NOW, undefined, named, plain)
+    return { questionId, plain, answers: lastComment().data.answers }
   }
   return { store, uid, ask, comment, view, lastComment, hostItem, boxSend }
 }
@@ -179,7 +191,14 @@ it('replies to the later ask when the item was read before an Activity that hold
   const second = ask(['Merge PR #22 and #23?'])
   for (const after of [0, first]) {
     // The whole Activity, or a page past the earlier ask.
-    const { replyingTo, waitingAsk, asks, waitingComments } = view(after, undefined, readFirst)
+    const { replyingTo, waitingAsk, asks, waitingComments, needsYouKey, lead } = view(
+      after,
+      undefined,
+      readFirst
+    )
+    // Reply leads to it, and no earlier page is read for the earlier ask.
+    expect(needsYouKey).toBe(botItemEventId(second))
+    expect(lead).toBe(botItemEventId(second))
     expect(replyingTo).toMatchObject({
       eventId: botItemEventId(second),
       line: 'Merge PR #22 and #23?'
@@ -189,9 +208,9 @@ it('replies to the later ask when the item was read before an Activity that hold
     expect(waitingComments).toEqual([botItemEventId(second)])
   }
   // The box's send names the later ask, and the host takes it as that ask's answer.
-  const { replyingTo } = view(0, undefined, readFirst)
-  expect(boxSend('Yes, both', replyingTo)).toEqual({
+  expect(boxSend('Yes, both', view(0, undefined, readFirst))).toEqual({
     questionId: botItemEventId(second),
+    plain: false,
     answers: botItemEventId(second)
   })
   expect(store.get(uid)?.status).toBe('working')
@@ -202,11 +221,65 @@ it('names the later ask on a send while the Activity read predates it', () => {
   ask(['Merge PR #22?'])
   const readUpTo = store.events(uid, 0, 200).at(-1)!.id
   const second = ask(['Merge PR #22 and #23?'])
-  const { replyingTo } = view(0, readUpTo)
-  expect(boxSend('Yes, both', replyingTo)).toEqual({
+  expect(boxSend('Yes, both', view(0, readUpTo))).toEqual({
     questionId: botItemEventId(second),
+    plain: false,
     answers: botItemEventId(second)
   })
+  expect(store.get(uid)?.status).toBe('working')
+})
+
+it('replies to an ask made after a reopen that the item read, closed, predates', () => {
+  const { store, uid, ask, view, hostItem, boxSend } = item()
+  store.set(uid, { status: 'done' }, AGENT, NOW)
+  // One read: the item first, closed; then the agent reopens it and asks, then the Activity is read.
+  const readClosed = hostItem()
+  expect(readClosed).toMatchObject({ status: 'done' })
+  store.set(uid, { status: 'working' }, AGENT, NOW)
+  const asked = ask(['Merge PR #22 and #23?'])
+  const read = view(0, undefined, readClosed)
+  expect(read.replyingTo).toMatchObject({
+    eventId: botItemEventId(asked),
+    line: 'Merge PR #22 and #23?'
+  })
+  expect(read.waitingComments).toEqual([botItemEventId(asked)])
+  expect(boxSend('Yes, both', read)).toEqual({
+    questionId: botItemEventId(asked),
+    plain: false,
+    answers: botItemEventId(asked)
+  })
+  expect(store.get(uid)?.status).toBe('working')
+})
+
+it('offers no reply target for an ask the item closed after its Activity was read', () => {
+  const { store, uid, ask, view } = item()
+  ask(['Merge PR #22?'])
+  const readUpTo = store.events(uid, 0, 200).at(-1)!.id
+  store.set(uid, { status: 'done' }, AGENT, NOW)
+  const read = view(0, readUpTo)
+  expect(read.replyingTo).toBeNull()
+  expect(read.waitingComments).toEqual([])
+})
+
+it('sends words plain while the ask the host names is on an earlier page, leaving its line open', () => {
+  const { store, uid, ask, comment, view, hostItem, boxSend } = item()
+  const asked = ask([HOSTS, GO])
+  // Its first line answered moved the item on, the second still open.
+  comment(`${HOSTS} → Yes`, asked)
+  expect(hostItem()).toMatchObject({ status: 'working', waitingAsk: botItemEventId(asked) })
+  // The newest page read starts after the ask.
+  const read = view(asked)
+  expect(read.replyingTo).toBeNull()
+  expect(read.lead).toBe(botItemEventId(asked))
+  expect(boxSend('Thanks, still deciding', read)).toEqual({
+    questionId: undefined,
+    plain: true,
+    answers: undefined
+  })
+  // The open line is still open, still waiting, and the item stays where it was.
+  expect(view().asks.get(botItemEventId(asked))?.answers.map(Boolean)).toEqual([true, false])
+  expect(hostItem().waitingAsk).toBe(botItemEventId(asked))
+  expect(view().replyingTo).toMatchObject({ eventId: botItemEventId(asked), line: GO })
   expect(store.get(uid)?.status).toBe('working')
 })
 

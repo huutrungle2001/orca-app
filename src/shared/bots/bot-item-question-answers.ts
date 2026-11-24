@@ -135,9 +135,13 @@ function answeredLines(
 
 // Hosts keep the waiting ask this pairs: a change to what it pairs bumps WAITING_ASK_RULES
 // (src/main/bots/bot-item-waiting-ask-keep.ts), and one to what events can't change it updates waitingAskChange there.
-// `item.waitingAsk`, from the host's read of the item, is never given by the host's own pairing.
+/** The item as a view read it: `waitingAsk` and `lastEventId` come from the host's read of the item,
+ *  never from the host's own pairing. */
+export type BotItemPairingItem = Pick<BotItem, 'status' | 'waitingAsk'> &
+  Partial<Pick<BotItem, 'lastEventId'>>
+
 export function botItemQuestionPairing(
-  item: Pick<BotItem, 'status' | 'waitingAsk'>,
+  item: BotItemPairingItem,
   events: readonly BotItemEvent[]
 ): BotItemQuestionPairing {
   const questions = new Map<string, BotItemQuestionAnswers>()
@@ -212,16 +216,25 @@ export function botItemQuestionPairing(
       open = null
     }
   }
-  // Only the latest ask waits, so each answer has one question to go to.
+  // Only the latest ask waits, so each answer has one question to go to. Events read after the item
+  // (a reopen and an ask since it closed) are the newer word on whether it is closed.
+  const ahead = eventsAhead(item, events)
   if (
     open?.entry.answers.includes(null) &&
-    item.status !== 'done' &&
-    item.status !== 'canceled' &&
+    (ahead || (item.status !== 'done' && item.status !== 'canceled')) &&
     !hostAsksLater(item.waitingAsk, open.id)
   ) {
     open.entry.waiting = true
   }
   return { questions, replies }
+}
+
+/** The events hold one newer than the item's own read of its last: they were read after it. */
+function eventsAhead(item: BotItemPairingItem, events: readonly BotItemEvent[]): boolean {
+  const last = item.lastEventId === undefined ? null : parseBotItemEventId(item.lastEventId)
+  const newest = events.at(-1)
+  const read = newest ? parseBotItemEventId(newest.id) : null
+  return last !== null && read !== null && read > last
 }
 
 /** The host's item names a later ask than the latest these events hold: they were read before it was
@@ -258,7 +271,7 @@ function quotedLine(
 
 /** The ask the agent waits on, by its event id, with its lines' answers so far. */
 export function botItemWaitingAsk(
-  item: Pick<BotItem, 'status' | 'waitingAsk'>,
+  item: BotItemPairingItem,
   events: readonly BotItemEvent[]
 ): ({ askId: string } & BotItemQuestionAnswers) | null {
   for (const [askId, entry] of botItemQuestionPairing(item, events).questions) {
@@ -276,7 +289,7 @@ export type BotItemWaitingLine = { id: string; eventId: string; line: string; re
  *  `replies` when that line has quick replies. The item's own question stands in until its event is
  *  read. A Needs you comment that asks no question has nothing to reply to. */
 export function botItemWaitingLine(
-  item: Pick<BotItem, 'question' | 'status' | 'waitingAsk'>,
+  item: BotItemPairingItem & Pick<BotItem, 'question'>,
   events: readonly BotItemEvent[]
 ): BotItemWaitingLine | null {
   for (const [questionId, entry] of botItemQuestionPairing(item, events).questions) {
@@ -311,4 +324,28 @@ export function botItemWaitingLine(
         replies: decision.replies.length > 0
       }
     : null
+}
+
+/** The ask the item's view leads to (Reply, and the earlier pages read to draw it): the one its events
+ *  show waiting, else the one the host names. */
+export function botItemLeadAskId(
+  item: BotItemPairingItem & Pick<BotItem, 'question'>,
+  events: readonly BotItemEvent[]
+): string | undefined {
+  return botItemWaitingAsk(item, events)?.askId ?? item.waitingAsk ?? item.question?.eventId
+}
+
+/** How the comment box's words go out while no ask of several waits: naming the question its
+ *  "Replying to" names; else plain, answering nothing, whenever the agent waits on one (its × closed,
+ *  or an ask this view hasn't read yet), so the host never takes them as an answer no box showed. */
+export function botItemBoxReply(
+  item: Pick<BotItem, 'waitingAsk'>,
+  oneLine: BotItemWaitingLine | null,
+  replyingTo: string | null
+): { questionId: string | undefined; plain: boolean } {
+  const named = oneLine !== null && replyingTo === oneLine.id
+  return {
+    questionId: named ? oneLine.eventId : undefined,
+    plain: !named && (oneLine !== null || item.waitingAsk !== undefined)
+  }
 }

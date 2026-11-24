@@ -16,6 +16,7 @@ import {
   botItemNamedAnswers
 } from './bot-item-answer-lines'
 import {
+  botItemBoxReply,
   botItemWaitingAsk,
   botItemWaitingLine,
   type BotItemWaitingLine
@@ -196,10 +197,12 @@ export function createBotItemQuestionStepsHooks(
         skills?: readonly BotItemCommentSkill[]
       ) => {
         if (!waiting) {
-          // Naming the question it answers, so a reply that lands after the agent asked anew is refused.
-          const answers =
-            oneLine !== null && replyingTo === oneLine.id ? oneLine.eventId : undefined
-          send(text, paths, answers, oneLine !== null && replyingTo === null, skills)
+          // Naming the question it answers, so a reply that lands after the agent asked anew is refused;
+          // naming none while the agent waits, plain.
+          const { questionId, plain } = item
+            ? botItemBoxReply(item, oneLine, replyingTo)
+            : { questionId: undefined, plain: false }
+          send(text, paths, questionId, plain, skills)
         } else if (replyingTo === `${askId}:${current}`) {
           settle(current, text, paths, skills)
         } else {

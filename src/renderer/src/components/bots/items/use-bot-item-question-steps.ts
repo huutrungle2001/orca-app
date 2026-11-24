@@ -23,6 +23,7 @@ import {
   botItemRideAlongText
 } from '../../../../../shared/bots/bot-item-answer-lines'
 import {
+  botItemBoxReply,
   botItemWaitingAsk,
   botItemWaitingLine,
   type BotItemWaitingLine
@@ -195,7 +196,10 @@ export function useBotItemQuestionSteps(
     ) => {
       setBound(null)
       if (!waiting) {
-        const answers = replyingTo !== null && oneLine !== null
+        // Naming the question it answers, so a reply that lands after the agent asked anew is refused;
+        // naming none while the agent waits, plain.
+        const { questionId, plain } = botItemBoxReply(item, oneLine, replyingTo)
+        const answers = questionId !== undefined && oneLine !== null
         // Answering the one question: what it answers stays with the send.
         const intent =
           answers && asked
@@ -209,18 +213,7 @@ export function useBotItemQuestionSteps(
             : answers
               ? { askId: oneLine.eventId, shape: NO_ASK, answers: [] }
               : undefined
-        // Naming the question it answers, so a reply that lands after the agent asked anew is refused.
-        const questionId =
-          oneLine !== null && replyingTo === oneLine.id ? oneLine.eventId : undefined
-        send(
-          text,
-          paths,
-          questionId,
-          oneLine !== null && replyingTo === null,
-          skills,
-          undefined,
-          intent
-        )
+        send(text, paths, questionId, plain, skills, undefined, intent)
         return
       }
       const line = shape.decisions.findIndex((_, index) => replyingTo === `${askId}:${index}`)

@@ -295,6 +295,31 @@ it('posts a typed answer to a single question at once, naming the question it an
   expect(posted.map(({ questionId }) => questionId)).toEqual(['e2'])
 })
 
+it('sends words plain while the ask the host names is still on an earlier page', () => {
+  // A line of the ask answered moved the item on; the newest page read holds no ask.
+  const comment: BotItemEvent = {
+    id: 'e9',
+    kind: 'commented',
+    actor: { kind: 'bot', botId: 'agent', chatId: 'chat' },
+    data: { text: 'Working on the hostnames.' },
+    at: NOW
+  }
+  const { hook, posted } = steps('paged', comment, {
+    ...item,
+    status: 'working',
+    question: null,
+    waitingAsk: 'e2',
+    lastEventId: 'e9'
+  })
+  expect(hook.result.current.steps).toBeNull()
+  expect(hook.result.current.waitingLine).toBeNull()
+  act(() => hook.result.current.fromBox('Thanks, still deciding', [], null))
+  // Never taken as the answer to the line still open: it names nothing and goes out plain.
+  expect(posted.map(({ questionId, plain }) => ({ questionId, plain }))).toEqual([
+    { questionId: undefined, plain: true }
+  ])
+})
+
 it('clears only the delivered answers still as sent, keeping lines added since', () => {
   const scope = 'bot-item-answers:test:delivered'
   const two = {
