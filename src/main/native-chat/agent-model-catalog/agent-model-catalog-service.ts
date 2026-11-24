@@ -117,6 +117,7 @@ export function createAgentModelCatalogService(
     },
     async read(params) {
       const waits = !params.savedOnly && params.waitForListing
+      const relistStartedAt = waits && params.relist ? Date.now() : undefined
       const deadline = params.deadline ?? Date.now() + AGENT_MODEL_CATALOG_PICKER_WAIT_MS
       if (waits) {
         const operation = params.operation ?? captureRead({ ...params, deadline })
@@ -144,11 +145,18 @@ export function createAgentModelCatalogService(
             result,
             () => memoryBinding({ agent: params.agent })?.base
           )
-      if (!expired || !answer.listingInProgress) {
-        return answer
+      if (expired && answer.listingInProgress) {
+        // Expiring a reader cannot settle the listing, including for clients predating waitExpired.
+        return { ...answer, waitExpired: true }
       }
-      // Expiring a reader cannot settle the listing, including for clients predating waitExpired.
-      return { ...answer, waitExpired: true }
+      return relistStartedAt !== undefined &&
+        result.origin === 'probe' &&
+        result.fetchedAt > relistStartedAt &&
+        result.fetchedAt <= Date.now() &&
+        !result.listingInProgress &&
+        !result.unavailable
+        ? { ...answer, freshProbe: true }
+        : answer
     },
     recordLiveListing: live.recordLiveListing,
     async prewarm() {

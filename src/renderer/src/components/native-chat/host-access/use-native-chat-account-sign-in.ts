@@ -5,6 +5,8 @@ import { translate } from '@/i18n/i18n'
 import { signInToClaudeAccount } from '@/lib/provider-accounts/claude-account-sign-in'
 import { getRendererAppPlatform } from '@/app-shell/platform/renderer-app-platform'
 import { callStructuredAgentSession } from '@/runtime/native-chat/requests/structured-agent-session-call'
+import { structuredAgentSessionHostSupports } from '@/runtime/native-chat/host-capabilities/structured-agent-session-host-support'
+import { AGENT_SESSION_MODEL_CATALOG_RELIST_RUNTIME_CAPABILITY } from '../../../../../shared/agent-session/capabilities/structured-agent-session-surface-capabilities'
 import type { AgentSessionModelCatalogResult } from '../../../../../shared/agent-session/agent-session-wire'
 import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import type { AgentSessionAccountKind } from '../../../../../shared/agent-session/failures/agent-session-availability'
@@ -16,6 +18,7 @@ import {
 import { lastVerifiedRuntimeStatus } from '../../../../../shared/remote-runtime/host-status/runtime-host-status'
 import { resolveHostAgentStartupShell } from '../../../../../shared/shell/launch/windows-terminal-shell'
 import type { NativeChatHostCommandTerminal } from './native-chat-host-command-terminal'
+import { useNativeChatCodexRecoveryAccount } from './use-native-chat-codex-recovery-account'
 import {
   useNativeChatTerminalSignInRecheck,
   type NativeChatTerminalSignIn
@@ -67,36 +70,13 @@ export function useNativeChatSignIn(
         null)
       : null
   )
-  const [codexAccount, setCodexAccount] = useState<{
-    sessionId: string
-    failureKey: string
-    selection: string | null
-    id: string | null
-  } | null>(null)
-  if (!needsSignIn && codexAccount?.id === null) {
-    setCodexAccount(null)
-  }
-  useEffect(() => {
-    if (!codexIdentity || !needsSignIn) {
-      return
-    }
-    let current = true
-    void window.api.codexAccounts
-      .chatSignInAccount({ sessionId: codexIdentity })
-      .catch(() => undefined)
-      .then((id) => {
-        if (current && id !== undefined) {
-          setCodexAccount({ sessionId: codexIdentity, failureKey, selection: codexSelection, id })
-        }
-      })
-    return () => {
-      current = false
-    }
-  }, [codexIdentity, failureKey, codexSelection, needsSignIn])
-  const chatAccount = codexAccount?.sessionId === codexIdentity ? codexAccount : null
-  const codexAccountId = chatAccount?.id
-  const codexLookupComplete =
-    chatAccount?.failureKey === failureKey && chatAccount.selection === codexSelection
+  const {
+    accountId: codexAccountId,
+    lastAccountId,
+    blocksTerminal,
+    failed: codexLookupFailed,
+    retry: retryCodexLookup
+  } = useNativeChatCodexRecoveryAccount(codexIdentity, needsSignIn, failureKey, codexSelection)
   const shell = useAppStoreWithHostStatuses((s, statuses) => {
     const status =
       input.target.kind === 'environment'
@@ -117,10 +97,8 @@ export function useNativeChatSignIn(
     )
   })
   const command = agentSessionSignInCommand(agent, { account, remote: !local, shell })
-  const terminalAllowed =
-    !(agent === 'codex' && account === 'managed') &&
-    !(codexIdentity && needsSignIn && !codexLookupComplete)
-  const identity = `${agent}:${local ? 'local' : input.target.kind === 'environment' ? input.target.environmentId : ''}:${sessionId ?? ''}:${codexAccountId ?? claudeAccountId ?? account ?? ''}`
+  const terminalAllowed = !(agent === 'codex' && account === 'managed') && !blocksTerminal
+  const identity = `${agent}:${local ? 'local' : input.target.kind === 'environment' ? input.target.environmentId : ''}:${sessionId ?? ''}:${lastAccountId ?? claudeAccountId ?? account ?? ''}`
   const [state, setState] = useState<{
     identity: string
     failureKey: string
@@ -149,27 +127,31 @@ export function useNativeChatSignIn(
   )
   const resolved = state.identity === identity && state.resolvedFor === failureKey
   const busy = state.identity === identity && state.busy
-  const recheck = useCallback(async () => {
-    if (!sessionId) {
-      return false
-    }
-    const result = await callStructuredAgentSession<AgentSessionModelCatalogResult>(
-      target,
-      'agentSession.modelCatalog',
-      { agent, sessionId, waitForListing: true }
-    ).catch(() => null)
-    return Boolean(
-      result && result.origin !== 'unknown' && !result.listingInProgress && !result.unavailable
-    )
-  }, [agent, sessionId, target])
-  const finish = useCallback(
+  const recheck = useCallback(
     async (ticket: number) => {
-      if (ticket !== attempt.current) {
+      if (!sessionId || ticket !== attempt.current) {
         return false
       }
-      const signedIn = await recheck()
-      if (ticket !== attempt.current) {
+      const relist = await structuredAgentSessionHostSupports(
+        target,
+        AGENT_SESSION_MODEL_CATALOG_RELIST_RUNTIME_CAPABILITY
+      )
+      if (!relist || ticket !== attempt.current) {
         return false
+      }
+      const result = await callStructuredAgentSession<AgentSessionModelCatalogResult>(
+        target,
+        'agentSession.modelCatalog',
+        { agent, sessionId, waitForListing: true, relist: true }
+      ).catch(() => null)
+      return ticket === attempt.current && result?.freshProbe === true
+    },
+    [agent, sessionId, target]
+  )
+  const finish = useCallback(
+    (ticket: number, signedIn: boolean) => {
+      if (ticket !== attempt.current) {
+        return
       }
       inFlight.current = false
       setState({
@@ -184,17 +166,24 @@ export function useNativeChatSignIn(
               'Sign-in could not be confirmed. Try again.'
             )
       })
-      onSignInRechecked?.()
-      return signedIn
+      if (signedIn) {
+        onSignInRechecked?.()
+      }
     },
-    [recheck, identity, failureKey, onSignInRechecked]
+    [identity, failureKey, onSignInRechecked]
   )
   if (terminalSignIn && terminalSignIn.identity !== identity) {
     setTerminalSignIn(null)
   }
-  useNativeChatTerminalSignInRecheck(terminalSignIn, input.isVisible, finish, (ticket) => {
-    setTerminalSignIn((signIn) => (signIn?.ticket === ticket ? null : signIn))
-  })
+  useNativeChatTerminalSignInRecheck(
+    terminalSignIn,
+    input.isVisible,
+    recheck,
+    (ticket, signedIn) => {
+      setTerminalSignIn((signIn) => (signIn?.ticket === ticket ? null : signIn))
+      finish(ticket, signedIn)
+    }
+  )
   const { worktreeId } = input
   const signIn = useCallback(() => {
     if (inFlight.current) {
@@ -226,7 +215,7 @@ export function useNativeChatSignIn(
       } else {
         throw new Error('Sign-in unavailable')
       }
-      await finish(ticket)
+      finish(ticket, true)
     })().catch(() => {
       if (ticket !== attempt.current) {
         return
@@ -261,15 +250,27 @@ export function useNativeChatSignIn(
   )
   const signInView = useMemo(
     () =>
-      available
-        ? {
-            signingIn: busy,
-            signedIn: resolved,
-            signIn,
-            ...(command && !codexAccountId && !claudeAccountId ? { loginCommand: command } : {})
-          }
-        : null,
-    [available, resolved, busy, signIn, command, codexAccountId, claudeAccountId]
+      codexLookupFailed && !busy && !resolved && !available
+        ? { lookupFailed: true, signingIn: false, signIn: retryCodexLookup }
+        : available
+          ? {
+              signingIn: busy,
+              signedIn: resolved,
+              signIn,
+              ...(command && !codexAccountId && !claudeAccountId ? { loginCommand: command } : {})
+            }
+          : null,
+    [
+      available,
+      resolved,
+      busy,
+      signIn,
+      command,
+      codexAccountId,
+      claudeAccountId,
+      codexLookupFailed,
+      retryCodexLookup
+    ]
   )
   const announcement =
     state.identity === identity && state.failureKey === failureKey ? state.announcement : ''

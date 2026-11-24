@@ -22753,7 +22753,8 @@
         "runsCommand": "Runs {{command}} in a terminal",
         "thenSlashCommand": "Sign in, then type {{slashCommand}}.",
         "signsInCodexAccount": "Signs in this Codex account",
-        "wasNotSignedIn": "{{agent}} wasn't signed in."
+        "wasNotSignedIn": "{{agent}} wasn't signed in.",
+        "checksChatAccount": "Checks which account this chat uses"
       },
       "antigravityAuth": {
         "chipLabel": "Antigravity signs in with {{method}}. Change",

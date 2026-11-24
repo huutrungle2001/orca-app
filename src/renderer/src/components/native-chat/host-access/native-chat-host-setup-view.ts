@@ -41,6 +41,7 @@ export function isNativeChatFailureRowResolved(
 export type NativeChatSignIn = {
   signingIn: boolean
   signedIn?: boolean
+  lookupFailed?: boolean
   signIn: () => void
   loginCommand?: string
 }
@@ -96,9 +97,11 @@ export function nativeChatSetupAction(
     isNativeChatSignInFailureKind(kind, signIn)
   ) {
     return {
-      label: signIn.signingIn
-        ? t('components.native-chat.claudeSignIn.signingIn', 'Signing in…')
-        : t('accounts.claude.signIn', 'Sign in'),
+      label: signIn.lookupFailed
+        ? t('components.native-chat.install.cliRecheck', 'Check again')
+        : signIn.signingIn
+          ? t('components.native-chat.claudeSignIn.signingIn', 'Signing in…')
+          : t('accounts.claude.signIn', 'Sign in'),
       primary: true,
       disabled: signIn.signingIn,
       onClick: signIn.signIn

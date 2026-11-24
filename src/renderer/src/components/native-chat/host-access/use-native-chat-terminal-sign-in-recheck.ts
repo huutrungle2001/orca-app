@@ -12,10 +12,11 @@ export function useNativeChatTerminalSignInRecheck(
   signIn: NativeChatTerminalSignIn | null,
   isVisible: boolean | undefined,
   check: (ticket: number) => Promise<boolean>,
-  onFinished: (ticket: number) => void
+  onFinished: (ticket: number, signedIn: boolean) => void
 ): void {
   const checkSignIn = useEffectEvent(check)
   const finish = useEffectEvent(onFinished)
+  const chatVisible = useEffectEvent(() => isVisible !== false)
   const refreshOnReturn = useRef<(() => void) | null>(null)
   useEffect(() => {
     if (!signIn) {
@@ -38,7 +39,7 @@ export function useNativeChatTerminalSignInRecheck(
           return
         }
         if (signedIn || (terminalEnded && !checkAgain)) {
-          finish(signIn.ticket)
+          finish(signIn.ticket, signedIn)
           return
         }
       } while (checkAgain)
@@ -46,7 +47,12 @@ export function useNativeChatTerminalSignInRecheck(
     }
     const requestRefresh = () => void refresh()
     refreshOnReturn.current = requestRefresh
-    window.addEventListener('focus', requestRefresh)
+    const onFocus = () => {
+      if (chatVisible()) {
+        requestRefresh()
+      }
+    }
+    window.addEventListener('focus', onFocus)
     const stopWatching = signIn.tabId
       ? watchSignInPty(signIn.tabId, signIn.worktreeId, () => {
           terminalEnded = true
@@ -56,7 +62,7 @@ export function useNativeChatTerminalSignInRecheck(
     return () => {
       cancelled = true
       refreshOnReturn.current = null
-      window.removeEventListener('focus', requestRefresh)
+      window.removeEventListener('focus', onFocus)
       stopWatching?.()
     }
   }, [signIn])

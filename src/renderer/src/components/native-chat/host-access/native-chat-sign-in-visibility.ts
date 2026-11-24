@@ -46,8 +46,9 @@ export function createNativeChatSignInVisibility() {
         root = root.parentElement
       }
       const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (!candidates.has(key)) {
+        (entries) => {
+          const entry = entries.at(-1)
+          if (!entry || !candidates.has(key)) {
             return
           }
           candidates.set(key, {

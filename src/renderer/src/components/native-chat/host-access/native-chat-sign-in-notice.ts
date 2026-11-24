@@ -95,6 +95,20 @@ export function nativeChatSignInNoticeView(
   if (signIn.signedIn) {
     return { signedIn: true, button: null }
   }
+  if (signIn.lookupFailed) {
+    return {
+      signedIn: false,
+      button: {
+        label: t('components.native-chat.install.cliRecheck', 'Check again'),
+        description: t(
+          'components.native-chat.signInNotice.checksChatAccount',
+          'Checks which account this chat uses'
+        ),
+        busy: false,
+        onClick: signIn.signIn
+      }
+    }
+  }
   // Pi and OMP open their CLI; the user still types its login command there.
   const slashCommand =
     signIn.loginCommand && entry && 'slashCommand' in entry ? entry.slashCommand : null
