@@ -1,6 +1,7 @@
 // What a look-around run may do: read. Enforced where tools are called and where Orca's own
 // commands are answered, never by asking the model. Anything not listed is refused.
 import type { ConnectorActionArgs } from '../../shared/connector-action-contract'
+import { unwrapShell } from '../../shared/agent-session/requests/tool-call-side-effects'
 
 export const LOOK_AROUND_REFUSAL =
   'Looking around can only read. Suggest this as a next step instead.'
@@ -111,12 +112,6 @@ function words(command: string): string[] | null {
   // Anything a word didn't take (a stray quote, a newline) is syntax this check can't read.
   const gaps = (text: string) => text.replace(/[ \t]/g, '')
   return gaps(consumed) === gaps(command) ? out : null
-}
-
-/** Codex wraps commands as `/bin/zsh -lc '<command>'`; the inner command is what runs. */
-export function unwrapShell(command: string): string {
-  const wrapped = /^(?:\S*\/)?(?:ba|z)?sh\s+-l?c\s+'((?:[^']|'\\'')*)'$/.exec(command.trim())
-  return wrapped ? wrapped[1].replace(/'\\''/g, "'") : command.trim()
 }
 
 /** How a bot's preamble names this session's own CLI on POSIX; Orca seals the variable. */
