@@ -268,7 +268,11 @@ export function rowVerdict(
   const { view, cut, unresolved, settled, endedCuts, idle, lastEnded, startedAt, rejectionOf } =
     facts
   if (row.claimMessageId !== undefined) {
-    return settled ? view.claimVerdict(row.claimMessageId) : null
+    const claimed = settled ? view.claimVerdict(row.claimMessageId) : null
+    // A hidden retry refused before it ran: the held turn's own words answer, as if never asked.
+    return claimed?.outcome === 'failed' && row.emptyRetried
+      ? (heldAnswer(row, view) ?? claimed)
+      : claimed
   }
   if (row.cut?.kind === 'usage_limit') {
     // Its scheduler's to close: once no continue will come, it fails with the limit it hit.
@@ -276,17 +280,9 @@ export function rowVerdict(
       ? { outcome: 'failed', ...(row.cutFailure ? { failure: row.cutFailure } : {}) }
       : null
   }
-  // Held for an empty turn's retry that never claimed it (refused, or the app quit first): that
-  // turn finished, answered only by any words it wrote before its last tool.
-  if (row.emptyRetried && row.cut && view.cutTurnVerdict(row.cut.turnId) === 'success') {
-    const { outcome, prose } = connectorReplyTurnOutcome({
-      outcome: 'success',
-      prose: view.cutTurnWords(row.cut.turnId),
-      bot: true
-    })
-    return prose
-      ? { outcome, prose: capAnswer(prose, JOURNAL_CONNECTOR_REPLY_PROSE_BYTES) }
-      : { outcome }
+  const held = heldAnswer(row, view)
+  if (held) {
+    return held
   }
   if (row.cut) {
     return settled ? { outcome: 'interrupted' } : null
@@ -321,4 +317,23 @@ export function rowVerdict(
   return (submission?.submittedAt ?? 0) < startedAt
     ? { outcome: 'interrupted', failure: UNCONFIRMED }
     : { outcome: 'unattributed' }
+}
+
+/** A row held for an empty turn's retry that never ran (refused, or the app quit first), whose
+ *  turn finished: answered only by any words that turn wrote before its last tool. */
+function heldAnswer(
+  row: Unfilled,
+  view: Awaited<ReturnType<typeof readReplyEvidence>>
+): ReplyRecoveryVerdict | null {
+  if (!row.emptyRetried || !row.cut || view.cutTurnVerdict(row.cut.turnId) !== 'success') {
+    return null
+  }
+  const { outcome, prose } = connectorReplyTurnOutcome({
+    outcome: 'success',
+    prose: view.cutTurnWords(row.cut.turnId),
+    bot: true
+  })
+  return prose
+    ? { outcome, prose: capAnswer(prose, JOURNAL_CONNECTOR_REPLY_PROSE_BYTES) }
+    : { outcome }
 }
