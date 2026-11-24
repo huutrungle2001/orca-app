@@ -128,6 +128,7 @@ export function NativeChatQueuedMessageCard({
   const failed = !auth && attention && caption !== null
   const sendNow = queuedMessageCardSendNow(card, agentWorking, t)
   const busy = pending !== null
+  const editLabel = t('components.native-chat.queuedMessages.editMessage', 'Edit message')
   const isMac = isMacPlatform()
   // Allow inspecting clipped text before acting; another agent may have authored the card.
   const [expanded, setExpanded] = useState(false)
@@ -161,15 +162,23 @@ export function NativeChatQueuedMessageCard({
     toolCount > 0 ? { '--queued-tools-mask': queuedRowToolsMask(toolCount) } : undefined
   const tools = actionable ? (
     <>
-      {editable ? (
-        <QueuedMessageRowTool
-          label={t('components.native-chat.queuedMessages.editMessage', 'Edit message')}
-          disabled={busy || editDisabled}
-          onClick={onEdit}
-        >
-          <Pencil className="size-3.5" />
-        </QueuedMessageRowTool>
-      ) : null}
+      {editable &&
+        (authRecovery ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={busy || editDisabled}
+            onClick={onEdit}
+          >
+            <Pencil className="size-3.5" />
+            {editLabel}
+          </Button>
+        ) : (
+          <QueuedMessageRowTool label={editLabel} disabled={busy || editDisabled} onClick={onEdit}>
+            <Pencil className="size-3.5" />
+          </QueuedMessageRowTool>
+        ))}
       <QueuedMessageRowTool
         label={t('components.native-chat.queuedMessages.delete', 'Delete')}
         disabled={busy}

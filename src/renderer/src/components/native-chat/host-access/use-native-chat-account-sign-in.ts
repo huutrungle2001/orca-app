@@ -192,6 +192,7 @@ export function useNativeChatSignIn(
       return
     }
     inFlight.current = true
+    waitingForTerminal.current = false
     const ticket = ++attempt.current
     setState({ identity, failureKey, busy: true, resolvedFor: null, announcement: '' })
     void (async () => {
@@ -208,6 +209,8 @@ export function useNativeChatSignIn(
         }
         if (ticket === attempt.current) {
           waitingForTerminal.current = true
+          inFlight.current = false
+          setState((current) => ({ ...current, busy: false }))
         }
         return
       } else {

@@ -127,7 +127,7 @@ function nativeChatLaunchNotice(
     action:
       nativeChatSetupAction(failure?.details?.reason, setup, t) ??
       nativeChatCliUpdateAction(cliTooOld, setup, t) ??
-      (!retryable || details?.reason === 'notSignedIn'
+      (!retryable
         ? undefined
         : {
             label: t('auto.components.native.chat.NativeChatLaunchRetry.retry', 'Retry'),
