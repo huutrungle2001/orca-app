@@ -16,6 +16,10 @@ import {
 import { lastVerifiedRuntimeStatus } from '../../../../../shared/remote-runtime/host-status/runtime-host-status'
 import { resolveHostAgentStartupShell } from '../../../../../shared/shell/launch/windows-terminal-shell'
 import type { NativeChatHostCommandTerminal } from './native-chat-host-command-terminal'
+import {
+  useNativeChatTerminalSignInRecheck,
+  type NativeChatTerminalSignIn
+} from './use-native-chat-terminal-sign-in-recheck'
 export type NativeChatHostSetupInput = {
   agent: string
   target: RuntimeClientTarget
@@ -63,9 +67,15 @@ export function useNativeChatSignIn(
         null)
       : null
   )
-  const [codexAccount, setCodexAccount] = useState<{ sessionId: string; id: string | null } | null>(
-    null
-  )
+  const [codexAccount, setCodexAccount] = useState<{
+    sessionId: string
+    failureKey: string
+    selection: string | null
+    id: string | null
+  } | null>(null)
+  if (!needsSignIn && codexAccount?.id === null) {
+    setCodexAccount(null)
+  }
   useEffect(() => {
     if (!codexIdentity || !needsSignIn) {
       return
@@ -73,17 +83,20 @@ export function useNativeChatSignIn(
     let current = true
     void window.api.codexAccounts
       .chatSignInAccount({ sessionId: codexIdentity })
-      .catch(() => null)
+      .catch(() => undefined)
       .then((id) => {
-        if (current) {
-          setCodexAccount({ sessionId: codexIdentity, id })
+        if (current && id !== undefined) {
+          setCodexAccount({ sessionId: codexIdentity, failureKey, selection: codexSelection, id })
         }
       })
     return () => {
       current = false
     }
   }, [codexIdentity, failureKey, codexSelection, needsSignIn])
-  const codexAccountId = codexAccount?.sessionId === codexIdentity ? codexAccount?.id : null
+  const chatAccount = codexAccount?.sessionId === codexIdentity ? codexAccount : null
+  const codexAccountId = chatAccount?.id
+  const codexLookupComplete =
+    chatAccount?.failureKey === failureKey && chatAccount.selection === codexSelection
   const shell = useAppStoreWithHostStatuses((s, statuses) => {
     const status =
       input.target.kind === 'environment'
@@ -104,6 +117,9 @@ export function useNativeChatSignIn(
     )
   })
   const command = agentSessionSignInCommand(agent, { account, remote: !local, shell })
+  const terminalAllowed =
+    !(agent === 'codex' && account === 'managed') &&
+    !(codexIdentity && needsSignIn && !codexLookupComplete)
   const identity = `${agent}:${local ? 'local' : input.target.kind === 'environment' ? input.target.environmentId : ''}:${sessionId ?? ''}:${codexAccountId ?? claudeAccountId ?? account ?? ''}`
   const [state, setState] = useState<{
     identity: string
@@ -122,13 +138,12 @@ export function useNativeChatSignIn(
     setState({ identity, failureKey, busy: false, resolvedFor: null, announcement: '' })
   }
   const inFlight = useRef(false)
-  const terminalCheck = useRef<'idle' | 'waiting' | 'checking' | 'again'>('idle')
+  const [terminalSignIn, setTerminalSignIn] = useState<NativeChatTerminalSignIn | null>(null)
   const attempt = useRef(0)
   useEffect(
     () => () => {
       ++attempt.current
       inFlight.current = false
-      terminalCheck.current = 'idle'
     },
     [identity]
   )
@@ -174,43 +189,19 @@ export function useNativeChatSignIn(
     },
     [recheck, identity, failureKey, onSignInRechecked]
   )
-  useEffect(() => {
-    const refresh = () => {
-      if (terminalCheck.current === 'checking') {
-        terminalCheck.current = 'again'
-      }
-      if (terminalCheck.current !== 'waiting') {
-        return
-      }
-      const ticket = attempt.current
-      terminalCheck.current = 'checking'
-      void finish(ticket).then((signedIn) => {
-        if (ticket !== attempt.current) {
-          return
-        }
-        const checkAgain = terminalCheck.current === 'again'
-        terminalCheck.current = signedIn ? 'idle' : 'waiting'
-        if (!signedIn && checkAgain) {
-          refresh()
-        }
-      })
-    }
-    window.addEventListener('focus', refresh)
-    const unsubscribe = window.api.pty.onExit(refresh)
-    if (input.isVisible) {
-      refresh()
-    }
-    return () => {
-      window.removeEventListener('focus', refresh)
-      unsubscribe()
-    }
-  }, [finish, input.isVisible])
+  if (terminalSignIn && terminalSignIn.identity !== identity) {
+    setTerminalSignIn(null)
+  }
+  useNativeChatTerminalSignInRecheck(terminalSignIn, input.isVisible, finish, (ticket) => {
+    setTerminalSignIn((signIn) => (signIn?.ticket === ticket ? null : signIn))
+  })
+  const { worktreeId } = input
   const signIn = useCallback(() => {
     if (inFlight.current) {
       return
     }
     inFlight.current = true
-    terminalCheck.current = 'idle'
+    setTerminalSignIn(null)
     const ticket = ++attempt.current
     setState({ identity, failureKey, busy: true, resolvedFor: null, announcement: '' })
     void (async () => {
@@ -221,12 +212,13 @@ export function useNativeChatSignIn(
         if (!(await signInToClaudeAccount(claudeAccountId))) {
           throw new Error('Sign-in cancelled or failed')
         }
-      } else if (command && terminal) {
-        if (!(await terminal.open(command, agentSessionSignInEnv(agent)))) {
+      } else if (command && terminal && terminalAllowed) {
+        const opened = await terminal.open(command, agentSessionSignInEnv(agent))
+        if (!opened) {
           throw new Error('Sign-in terminal did not open')
         }
         if (ticket === attempt.current) {
-          terminalCheck.current = 'waiting'
+          setTerminalSignIn({ identity, ticket, worktreeId, tabId: opened.tabId })
           inFlight.current = false
           setState((current) => ({ ...current, busy: false }))
         }
@@ -239,7 +231,6 @@ export function useNativeChatSignIn(
       if (ticket !== attempt.current) {
         return
       }
-      terminalCheck.current = 'idle'
       inFlight.current = false
       setState({
         identity,
@@ -261,12 +252,12 @@ export function useNativeChatSignIn(
     agent,
     command,
     terminal,
+    terminalAllowed,
+    worktreeId,
     finish
   ])
   const available = Boolean(
-    codexAccountId ||
-    claudeAccountId ||
-    (command && terminal && !(agent === 'codex' && account === 'managed'))
+    codexAccountId || claudeAccountId || (command && terminal && terminalAllowed)
   )
   const signInView = useMemo(
     () =>

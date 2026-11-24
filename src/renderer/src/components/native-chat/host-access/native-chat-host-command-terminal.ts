@@ -10,7 +10,7 @@ import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/h
 
 export type NativeChatHostCommandTerminal = {
   opening: boolean
-  open: (command: string, env?: Record<string, string>) => Promise<boolean>
+  open: (command: string, env?: Record<string, string>) => Promise<{ tabId?: string } | null>
 }
 
 /** Opens a visible terminal on the chat's own host running a setup command; null without a workspace. */
@@ -27,14 +27,14 @@ export function useNativeChatHostCommandTerminal(input: {
   const open = useCallback(
     (command: string, env?: Record<string, string>) => {
       if (!worktreeId || openingRef.current) {
-        return Promise.resolve(false)
+        return Promise.resolve(null)
       }
       openingRef.current = true
       setOpening(true)
       return (async () => {
         if (environmentId) {
           if (!(await startStoppedWslHostForUserAct(environmentId))) {
-            return false
+            return null
           }
           const outcome = await createWebRuntimeSessionTerminalOnHost(
             {
@@ -50,18 +50,18 @@ export function useNativeChatHostCommandTerminal(input: {
           )
           if (outcome.status === 'failed') {
             notifyWebRuntimeTerminalCreateFailure(outcome.message, { environmentId, worktreeId })
-            return false
+            return null
           }
-        } else {
-          const store = useAppStore.getState()
-          const tab = store.createTab(worktreeId, groupId, undefined, {
-            pendingStartup: { command, ...(env && { env }) },
-            viewMode: 'terminal'
-          })
-          store.setActiveTabType('terminal', worktreeId)
-          persistAgentLaunchTabOrder(worktreeId, tab.id)
+          return { tabId: outcome.mirroredTabId }
         }
-        return true
+        const store = useAppStore.getState()
+        const tab = store.createTab(worktreeId, groupId, undefined, {
+          pendingStartup: { command, ...(env && { env }) },
+          viewMode: 'terminal'
+        })
+        store.setActiveTabType('terminal', worktreeId)
+        persistAgentLaunchTabOrder(worktreeId, tab.id)
+        return { tabId: tab.id }
       })()
         .catch(() => {
           toast.error(
@@ -70,7 +70,7 @@ export function useNativeChatHostCommandTerminal(input: {
               'Could not open a terminal for this workspace'
             )
           )
-          return false
+          return null
         })
         .finally(() => {
           openingRef.current = false
