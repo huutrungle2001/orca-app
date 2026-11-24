@@ -20,7 +20,8 @@ export function structuredAgentSessionTurnReply(
       continue
     }
     toolsRan ||= journalItemHasSideEffects(item.body)
-    if (item.body.kind === 'tool-call') {
+    // A file edit recorded as a diff ends the commentary before it, like any tool call.
+    if (item.body.kind === 'tool-call' || item.body.kind === 'diff') {
       if (isRootAgentJournalItem(item)) {
         botProse ??= ''
       }
