@@ -8,6 +8,7 @@ import {
   useWslHostChatOfferSettingUp
 } from '@/lib/agent-session/launch/structured-chat-wsl-host-offer'
 import { useNativeChatHostSetup } from '../../host-access/native-chat-host-setup'
+import { isNativeChatSignInFailureKind } from '../../host-access/native-chat-host-setup-view'
 import {
   nativeChatAgySignedOutBeforeSend,
   nativeChatSignInContext
@@ -27,6 +28,7 @@ import type { useNativeChatInstallSlot } from '../../host-access/NativeChatInsta
 import type { useNativeChatHostSendGate } from '../../host-access/use-native-chat-host-send-gate'
 import type { NativeChatComposerNotice } from '../../composer/controls/native-chat-composer-notice'
 import type { AgentSessionFailureFact } from '../../../../../../shared/agent-session/failures/agent-session-failure'
+import { inSendOrder } from '../../../../../../shared/native-chat/transcript/pending-sends/native-chat-send-order'
 import { useTranslate } from '../../../../i18n/use-translate'
 
 export function useNativeChatStructuredPaneNotices({
@@ -94,24 +96,32 @@ export function useNativeChatStructuredPaneNotices({
   const agySignedOut = useAntigravityChatAuthDetection(agyHost)?.agySignedOut
   const unavailable =
     controller.unavailable ?? nativeChatAgySignedOutBeforeSend(agySignedOut, controller.submissions)
+  const latestSubmission = useMemo(
+    () => inSendOrder(controller.submissions ?? [], (submission) => submission).at(-1),
+    [controller.submissions]
+  )
   const { account, failure } = nativeChatSignInContext({
     unavailable,
-    launchDetails: details,
+    launchDetails: launchFailed ? details : undefined,
     items: controller.journalItems,
-    submissions: controller.submissions,
+    latestSubmission,
     kickoff: kickoffSignIn
   })
+  const launchSignInKey =
+    launchFailed && isNativeChatSignInFailureKind(details?.reason)
+      ? `launch:${details?.reason}`
+      : undefined
+  const availabilityKey =
+    unavailable?.reason === 'notSignedIn' ? `availability:${unavailable.account ?? ''}` : undefined
+  const failureKey =
+    failure?.key ?? launchSignInKey ?? availabilityKey ?? (kickoffOwed ? 'kickoff' : undefined)
   const setup = useNativeChatHostSetup({
     ...props,
     worktreeId: ownerWorktreeId,
-    failureKey: failure?.key,
+    failureKey,
     transcriptFailureId: failure?.rowId,
     onSignInRechecked: demandModelCatalog,
-    needsSignIn:
-      failure !== null ||
-      unavailable?.reason === 'notSignedIn' ||
-      (launchFailed && details?.reason === 'notSignedIn') ||
-      kickoffOwed,
+    needsSignIn: failureKey !== undefined,
     account,
     failure: provisionalLaunch.failure,
     startFailures,
@@ -132,7 +142,7 @@ export function useNativeChatStructuredPaneNotices({
     wslDistro: continuation.view.wslDistro,
     launchFailure: provisionalLaunch.lifecycle === 'failed' ? provisionalLaunch.failure : null,
     journalItems: controller.journalItems,
-    submissions: controller.submissions,
+    latestSubmission,
     deliveryNotices
   })
   const wslHostOffer = useAppStore(

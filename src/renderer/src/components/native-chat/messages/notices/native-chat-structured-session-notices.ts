@@ -19,6 +19,7 @@ import { agentSessionRefusalNamesTooOldCli } from '../../../../../../shared/agen
 import { joinSentences } from '../../../../../../shared/text/sentence-joining'
 import { agentSessionWriteNoticeText } from './agent-session-write-notice-text'
 import {
+  isNativeChatSignInFailureKind,
   nativeChatSetupAction,
   type NativeChatHostSetup
 } from '../../host-access/native-chat-host-setup-view'
@@ -72,6 +73,9 @@ function nativeChatLaunchNotice(
     }
   }
   const details = failure?.details
+  const signedIn =
+    isNativeChatSignInFailureKind(details?.reason, setup?.signIn) &&
+    (setup?.resolved || setup?.signIn?.signedIn)
   const signIn = nativeChatSignInNoticeView(
     {
       kind: details?.reason,
@@ -81,7 +85,7 @@ function nativeChatLaunchNotice(
     },
     t
   )
-  if (signIn) {
+  if (signIn?.button && !signedIn) {
     // The host words the failure, with any provider diagnostic; keep what the short line leaves out.
     const signInDetails = nativeChatSignInHostWords(
       failure?.causeText,
@@ -102,15 +106,16 @@ function nativeChatLaunchNotice(
       ...(signInDetails ? { signInDetails } : {})
     }
   }
-  const cause = failure
-    ? (failure.causeText ??
-      agentSessionWriteNoticeText(
-        agentSessionRefusalCauseParts(failure, {
-          ...(agentLabel ? { agentName: agentLabel } : {}),
-          ...(hostName ? { hostName } : {})
-        })
-      ))
-    : ''
+  const cause =
+    failure && !signedIn
+      ? (failure.causeText ??
+        agentSessionWriteNoticeText(
+          agentSessionRefusalCauseParts(failure, {
+            ...(agentLabel ? { agentName: agentLabel } : {}),
+            ...(hostName ? { hostName } : {})
+          })
+        ))
+      : ''
   const cliTooOld = agentSessionRefusalNamesTooOldCli(failure ?? undefined)
   // An argument problem already says the start failed; a too-old CLI says what chats need.
   const saysStartFailure =

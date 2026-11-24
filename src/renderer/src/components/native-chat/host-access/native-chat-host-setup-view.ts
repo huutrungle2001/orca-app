@@ -11,7 +11,7 @@ const SIGN_IN_FAILURE_KINDS: ReadonlySet<string> = new Set([
   'claudeAccountFolderMissing'
 ])
 
-function isNativeChatSignInFailureKind(
+export function isNativeChatSignInFailureKind(
   kind: string | undefined,
   signIn?: NativeChatSignIn | null
 ): boolean {
@@ -89,7 +89,12 @@ export function nativeChatSetupAction(
     }
   | undefined {
   const signIn = setup?.signIn
-  if (signIn && isNativeChatSignInFailureKind(kind, signIn)) {
+  if (
+    signIn &&
+    !signIn.signedIn &&
+    !setup?.resolved &&
+    isNativeChatSignInFailureKind(kind, signIn)
+  ) {
     return {
       label: signIn.signingIn
         ? t('components.native-chat.claudeSignIn.signingIn', 'Signing in…')

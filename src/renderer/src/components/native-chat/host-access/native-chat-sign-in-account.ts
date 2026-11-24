@@ -24,10 +24,9 @@ type CurrentFailure = { fact: AgentSessionFailureFact; rowId: string; key: strin
  *  after either, leaves none. */
 function currentFailure(
   items: readonly AgentJournalRenderItem[],
-  submissions: readonly Submission[]
+  latest: Submission | undefined
 ): CurrentFailure | null {
   const { line, resolvedAt } = agentSessionLatestFailureLine(items)
-  const latest = submissions.at(-1)
   // Older hosts don't say where a send sits; it is then taken as the newest thing that happened.
   const sentAt = latest ? (latest.submittedSequence ?? Number.POSITIVE_INFINITY) : null
   if (
@@ -54,11 +53,11 @@ export function nativeChatSignInContext(input: {
   unavailable: AgentSessionUnavailable | null | undefined
   launchDetails: unknown
   items: readonly AgentJournalRenderItem[]
-  submissions: readonly Submission[] | undefined
+  latestSubmission: Submission | undefined
   kickoff?: { account?: AgentSessionAccountKind } | null
 }): { account: AgentSessionAccountKind | undefined; failure: CurrentFailure | null } {
   const details = input.launchDetails
-  const current = currentFailure(input.items, input.submissions ?? [])
+  const current = currentFailure(input.items, input.latestSubmission)
   const failure = current?.fact.kind === 'notSignedIn' ? current : null
   const account =
     (input.unavailable?.reason === 'notSignedIn' ? input.unavailable.account : undefined) ??

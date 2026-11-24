@@ -118,14 +118,17 @@ export function useNativeChatSignIn(
     resolvedFor: null,
     announcement: ''
   })
+  if (state.identity !== identity || (!state.busy && state.failureKey !== failureKey)) {
+    setState({ identity, failureKey, busy: false, resolvedFor: null, announcement: '' })
+  }
   const inFlight = useRef(false)
-  const waitingForTerminal = useRef(false)
+  const terminalCheck = useRef<'idle' | 'waiting' | 'checking' | 'again'>('idle')
   const attempt = useRef(0)
   useEffect(
     () => () => {
       ++attempt.current
       inFlight.current = false
-      waitingForTerminal.current = false
+      terminalCheck.current = 'idle'
     },
     [identity]
   )
@@ -140,20 +143,18 @@ export function useNativeChatSignIn(
       'agentSession.modelCatalog',
       { agent, sessionId, waitForListing: true }
     ).catch(() => null)
-    onSignInRechecked?.()
     return Boolean(
       result && result.origin !== 'unknown' && !result.listingInProgress && !result.unavailable
     )
-  }, [agent, sessionId, target, onSignInRechecked])
+  }, [agent, sessionId, target])
   const finish = useCallback(
     async (ticket: number) => {
       if (ticket !== attempt.current) {
-        return
+        return false
       }
-      waitingForTerminal.current = false
       const signedIn = await recheck()
       if (ticket !== attempt.current) {
-        return
+        return false
       }
       inFlight.current = false
       setState({
@@ -168,14 +169,31 @@ export function useNativeChatSignIn(
               'Sign-in could not be confirmed. Try again.'
             )
       })
+      onSignInRechecked?.()
+      return signedIn
     },
-    [recheck, identity, failureKey]
+    [recheck, identity, failureKey, onSignInRechecked]
   )
   useEffect(() => {
     const refresh = () => {
-      if (waitingForTerminal.current) {
-        void finish(attempt.current)
+      if (terminalCheck.current === 'checking') {
+        terminalCheck.current = 'again'
       }
+      if (terminalCheck.current !== 'waiting') {
+        return
+      }
+      const ticket = attempt.current
+      terminalCheck.current = 'checking'
+      void finish(ticket).then((signedIn) => {
+        if (ticket !== attempt.current) {
+          return
+        }
+        const checkAgain = terminalCheck.current === 'again'
+        terminalCheck.current = signedIn ? 'idle' : 'waiting'
+        if (!signedIn && checkAgain) {
+          refresh()
+        }
+      })
     }
     window.addEventListener('focus', refresh)
     const unsubscribe = window.api.pty.onExit(refresh)
@@ -192,7 +210,7 @@ export function useNativeChatSignIn(
       return
     }
     inFlight.current = true
-    waitingForTerminal.current = false
+    terminalCheck.current = 'idle'
     const ticket = ++attempt.current
     setState({ identity, failureKey, busy: true, resolvedFor: null, announcement: '' })
     void (async () => {
@@ -208,7 +226,7 @@ export function useNativeChatSignIn(
           throw new Error('Sign-in terminal did not open')
         }
         if (ticket === attempt.current) {
-          waitingForTerminal.current = true
+          terminalCheck.current = 'waiting'
           inFlight.current = false
           setState((current) => ({ ...current, busy: false }))
         }
@@ -221,7 +239,7 @@ export function useNativeChatSignIn(
       if (ticket !== attempt.current) {
         return
       }
-      waitingForTerminal.current = false
+      terminalCheck.current = 'idle'
       inFlight.current = false
       setState({
         identity,
