@@ -19,6 +19,7 @@ import {
   latestTurnOpener,
   readEndedChatTurnOpener
 } from './external-conversation-turn-opener'
+import { journalTurnAnsweredMessages } from '../../shared/agent-session/journal/journal-turn-answered-messages'
 
 // A chat's ended turn, read from its journal as of the turn's end.
 
@@ -37,6 +38,8 @@ export type EndedChatTurn = {
   /** A bot's answer in it: its prose after its last tool call (structuredAgentSessionTurnReply). */
   turnBotProse?: string
   turnToolsRan?: boolean
+  /** The turn answered a message besides its opener (a steer, a joined bot request): no one asker. */
+  turnAnsweredOthers?: boolean
 }
 
 export async function endedTurn(
@@ -114,7 +117,10 @@ function outboxTurn(
   submissions: AgentJournalSnapshot['submissions'],
   opener: AgentJournalRenderItem | null | undefined,
   turnId: string
-): Pick<EndedChatTurn, 'turnItemId' | 'stamps' | 'turnProse' | 'turnBotProse' | 'turnToolsRan'> {
+): Pick<
+  EndedChatTurn,
+  'turnItemId' | 'stamps' | 'turnProse' | 'turnBotProse' | 'turnToolsRan' | 'turnAnsweredOthers'
+> {
   const turnItemId = endedChatTurnRow(items, turnId)?.itemId
   if (!turnItemId) {
     return {}
@@ -125,7 +131,9 @@ function outboxTurn(
     stamps: connectorReplyTurnStamps({ items, submissions }, opener, turnItemId),
     turnProse: prose,
     turnBotProse: botProse,
-    turnToolsRan: toolsRan
+    turnToolsRan: toolsRan,
+    turnAnsweredOthers:
+      journalTurnAnsweredMessages({ items, submissions }, opener, turnItemId).length > 1
   }
 }
 
