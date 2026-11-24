@@ -112,7 +112,7 @@ export function NativeChatQueuedMessageCard({
     },
     t
   )
-  const signInAnchor = useRef<HTMLDivElement>(null)
+  const signInAnchor = useRef<HTMLSpanElement>(null)
   const selected = useNativeChatSignInCandidate(
     'queue',
     card.messageId,
@@ -331,10 +331,13 @@ export function NativeChatQueuedMessageCard({
           {!authRecovery ? sendButton : null}
         </div>
         {authRecovery ? (
-          <div ref={signInAnchor} className="flex w-full flex-wrap items-center gap-2">
-            {showsSignIn && signIn?.button ? (
-              <NativeChatSignInButton button={signIn.button} />
-            ) : null}
+          <div className="flex w-full flex-wrap items-center gap-2">
+            {/* Observe the Sign in control itself: a wrapped group can be partly visible while it is clipped. */}
+            <span ref={signInAnchor} className="flex shrink-0 empty:-mr-2">
+              {showsSignIn && signIn?.button ? (
+                <NativeChatSignInButton button={signIn.button} />
+              ) : null}
+            </span>
             {sendButton}
             {tools}
           </div>

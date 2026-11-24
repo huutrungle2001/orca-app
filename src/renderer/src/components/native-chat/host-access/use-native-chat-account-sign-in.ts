@@ -110,15 +110,18 @@ export function useNativeChatSignIn(
     identity: string
     busy: boolean
     resolved: boolean
+    /** A sign-in terminal opened and nothing confirmed it: the user may have signed in there. */
+    unconfirmed: boolean
     announcement: string
   }>({
     identity,
     busy: false,
     resolved: false,
+    unconfirmed: false,
     announcement: ''
   })
   if (state.identity !== identity) {
-    setState({ identity, busy: false, resolved: false, announcement: '' })
+    setState({ identity, busy: false, resolved: false, unconfirmed: false, announcement: '' })
   }
   const inFlight = useRef(false)
   const [terminalSignIn, setTerminalSignIn] = useState<NativeChatTerminalSignIn | null>(null)
@@ -159,20 +162,19 @@ export function useNativeChatSignIn(
         return
       }
       inFlight.current = false
+      if (!signedIn) {
+        // Many hosts and agents can't confirm a terminal login; claim neither success nor failure.
+        setState((current) => ({ ...current, busy: false, unconfirmed: true }))
+        return
+      }
       setState({
         identity,
         busy: false,
-        resolved: signedIn,
-        announcement: signedIn
-          ? translate('components.native-chat.signIn.succeeded', 'Signed in.')
-          : translate(
-              'components.native-chat.signIn.notConfirmed',
-              'Sign-in could not be confirmed. Try again.'
-            )
+        resolved: true,
+        unconfirmed: false,
+        announcement: translate('components.native-chat.signIn.succeeded', 'Signed in.')
       })
-      if (signedIn) {
-        onSignInRechecked?.()
-      }
+      onSignInRechecked?.()
     },
     [identity, onSignInRechecked]
   )
@@ -193,10 +195,20 @@ export function useNativeChatSignIn(
     if (inFlight.current) {
       return
     }
+    // A repeat press returns to the login terminal still open instead of opening another.
+    if (terminalSignIn?.tabId && terminal?.show(terminalSignIn.tabId)) {
+      return
+    }
     inFlight.current = true
     setTerminalSignIn(null)
     const ticket = ++attempt.current
-    setState({ identity, busy: true, resolved: false, announcement: '' })
+    setState((current) => ({
+      identity,
+      busy: true,
+      resolved: false,
+      unconfirmed: current.identity === identity && current.unconfirmed,
+      announcement: ''
+    }))
     void (async () => {
       if (codexAccountId && sessionId) {
         await window.api.codexAccounts.reauthenticate({ accountId: codexAccountId, sessionId })
@@ -213,7 +225,7 @@ export function useNativeChatSignIn(
         if (ticket === attempt.current) {
           setTerminalSignIn({ identity, ticket, worktreeId, tabId: opened.tabId })
           inFlight.current = false
-          setState((current) => ({ ...current, busy: false }))
+          setState((current) => ({ ...current, busy: false, unconfirmed: true }))
         }
         return
       } else {
@@ -232,6 +244,7 @@ export function useNativeChatSignIn(
         identity,
         busy: false,
         resolved: false,
+        unconfirmed: false,
         announcement: translate(
           'components.native-chat.signIn.cancelled',
           'Sign-in cancelled or failed. Try again.'
@@ -248,12 +261,14 @@ export function useNativeChatSignIn(
     terminal,
     terminalAllowed,
     worktreeId,
+    terminalSignIn,
     retryCodexLookup,
     finish
   ])
   const available = Boolean(
     codexAccountId || claudeAccountId || (command && terminal && terminalAllowed)
   )
+  const unconfirmed = state.identity === identity && state.unconfirmed && !resolved
   const signInView = useMemo(
     () =>
       codexLookupFailed && !busy && !resolved && !available
@@ -262,6 +277,7 @@ export function useNativeChatSignIn(
           ? {
               signingIn: busy,
               signedIn: resolved,
+              ...(unconfirmed ? { unconfirmed: true } : {}),
               signIn,
               ...(command && !codexAccountId && !claudeAccountId ? { loginCommand: command } : {})
             }
@@ -270,6 +286,7 @@ export function useNativeChatSignIn(
       available,
       resolved,
       busy,
+      unconfirmed,
       signIn,
       command,
       codexAccountId,

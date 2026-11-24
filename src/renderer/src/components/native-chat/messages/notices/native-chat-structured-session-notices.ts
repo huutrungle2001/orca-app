@@ -72,6 +72,16 @@ function nativeChatLaunchNotice(
       action: wslHostChatOfferAction(wslHostOffer, t, wslHostOfferSettingUp)
     }
   }
+  // No retry continues a conversation saved in another folder.
+  const retryable = !(
+    failure?.code === 'agent_session_identity_required' && failure.details?.otherFolder
+  )
+  const retry = retryable
+    ? {
+        label: t('auto.components.native.chat.NativeChatLaunchRetry.retry', 'Retry'),
+        onClick: onRetry
+      }
+    : undefined
   const details = failure?.details
   const signedIn =
     isNativeChatSignInFailureKind(details?.reason, setup?.signIn) &&
@@ -103,6 +113,8 @@ function nativeChatLaunchNotice(
         t
       ),
       signIn,
+      // The user may have signed in where nothing could confirm it; starting again stays theirs.
+      ...(setup?.signIn?.unconfirmed && retry ? { action: retry } : {}),
       ...(signInDetails ? { signInDetails } : {})
     }
   }
@@ -121,10 +133,6 @@ function nativeChatLaunchNotice(
   const saysStartFailure =
     cliTooOld ||
     (failure?.code === 'agent_session_operation_invalid' && failure.details?.argumentProblem)
-  // No retry continues a conversation saved in another folder.
-  const retryable = !(
-    failure?.code === 'agent_session_identity_required' && failure.details?.otherFolder
-  )
   return {
     key: 'launch',
     kind: 'error',
@@ -132,12 +140,7 @@ function nativeChatLaunchNotice(
     action:
       nativeChatSetupAction(failure?.details?.reason, setup, t) ??
       nativeChatCliUpdateAction(cliTooOld, setup, t) ??
-      (!retryable
-        ? undefined
-        : {
-            label: t('auto.components.native.chat.NativeChatLaunchRetry.retry', 'Retry'),
-            onClick: onRetry
-          })
+      retry
   }
 }
 

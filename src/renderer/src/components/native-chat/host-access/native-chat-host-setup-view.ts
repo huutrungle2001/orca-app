@@ -42,6 +42,8 @@ export type NativeChatSignIn = {
   signingIn: boolean
   signedIn?: boolean
   lookupFailed?: boolean
+  /** A sign-in terminal opened and nothing confirmed it, so the launch keeps its own Retry. */
+  unconfirmed?: boolean
   signIn: () => void
   loginCommand?: string
 }

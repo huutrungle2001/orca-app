@@ -12,6 +12,8 @@ import { nativeChatSignInNoticeView } from '@/components/native-chat/host-access
 import { createNativeChatSignInVisibility } from '@/components/native-chat/host-access/native-chat-sign-in-visibility'
 import { useNativeChatSignIn } from '@/components/native-chat/host-access/use-native-chat-account-sign-in'
 import { useNativeChatSignInVisibility } from '@/components/native-chat/host-access/use-native-chat-sign-in-visibility'
+import { structuredSessionNotices } from '@/components/native-chat/messages/notices/native-chat-structured-session-notices'
+import type { StructuredLaunchFailure } from '@/lib/agent-session/launch/structured-agent-session-launch-failure'
 import { NativeChatQueuedMessageCard } from '@/components/native-chat/queue/NativeChatQueuedMessageCard'
 import { agentSessionUnresolvedFailureRows } from '../../../src/shared/agent-session/failures/agent-session-visible-failures'
 import { agentSessionFailureFact } from '../../../src/shared/agent-session/failures/agent-session-failure'
@@ -51,12 +53,20 @@ const params = new URLSearchParams(location.search)
 const surface = params.get('surface')
 const older = surface === 'older'
 const queue = surface === 'queue' || surface === 'queue-clipped'
+const launch = surface === 'launch'
+const launchFailure: StructuredLaunchFailure = {
+  kind: 'refused',
+  code: 'agent_session_operation_invalid',
+  details: { reason: 'notSignedIn', account: 'system' }
+}
+let launchRetries = 0
 const lookups: PromiseWithResolvers<string | null>[] = []
 const probes: PromiseWithResolvers<{
   ok: true
   result: { origin: 'unknown'; signInConfirmed?: true; freshProbe?: true }
 }>[] = []
 let openTerminals = 0
+let shownTerminals = 0
 let releaseReauthentication: (() => void) | undefined
 
 Object.defineProperty(window, 'api', {
@@ -95,6 +105,11 @@ const terminal = {
       ptyIdsByTabId: { [id]: ['fixture-login-pty'], unrelated: ['fixture-other-pty'] }
     })
     return { tabId: id }
+  },
+  show(tabId: string) {
+    const open = Boolean(useAppStore.getState().ptyIdsByTabId[tabId]?.length)
+    shownTerminals += Number(open)
+    return open
   }
 }
 
@@ -115,7 +130,13 @@ window.IntersectionObserver = class extends NativeObserver {
 }
 
 const controls = {
-  pending: () => ({ probes: probes.length, lookups: lookups.length, openTerminals }),
+  pending: () => ({
+    probes: probes.length,
+    lookups: lookups.length,
+    openTerminals,
+    shownTerminals,
+    launchRetries
+  }),
   resolveLookup: (account: string | null) => lookups.shift()?.resolve(account),
   rejectLookup: () => lookups.shift()?.reject(new Error('Fixture discovery unavailable')),
   finishManaged: () => releaseReauthentication?.(),
@@ -181,11 +202,27 @@ function Pane({ managed, failure, send }: { managed: boolean; failure: number; s
   const { banner } = useNativeChatSignInVisibility(setup)
   const bannerView = nativeChatSignInNoticeView({ kind: 'notSignedIn', agent: 'Codex', setup })
   const showBanner = banner && !older && bannerView !== null && !resolved
+  // The launch notice comes from the production notice builder, Retry included.
+  const launchNotices = launch
+    ? structuredSessionNotices({
+        launch: {
+          lifecycle: 'failed',
+          failure: launchFailure,
+          retry: () => {
+            launchRetries += 1
+          }
+        },
+        agentLabel: 'Codex',
+        sessionError: null,
+        composerError: null,
+        setup
+      })
+    : []
   return (
     <NativeChatHostSetupProvider value={{ ...setup, signInInComposer: showBanner }}>
       <div aria-label="Transcript" className="overflow-y-auto" style={{ height: 220 }}>
         {surface === 'queue-clipped' && <div style={{ height: 190 }} />}
-        {queue ? (
+        {launch ? null : queue ? (
           <ul>
             <NativeChatQueuedMessageCard
               card={{
@@ -227,16 +264,18 @@ function Pane({ managed, failure, send }: { managed: boolean; failure: number; s
       <section aria-label="Composer notice">
         <NativeChatPromptSlotNotices
           notices={
-            showBanner
-              ? [
-                  {
-                    key: 'fixture-auth',
-                    kind: 'error',
-                    text: "Codex isn't signed in.",
-                    signIn: bannerView
-                  }
-                ]
-              : []
+            launch
+              ? launchNotices
+              : showBanner
+                ? [
+                    {
+                      key: 'fixture-auth',
+                      kind: 'error',
+                      text: "Codex isn't signed in.",
+                      signIn: bannerView
+                    }
+                  ]
+                : []
           }
         />
       </section>

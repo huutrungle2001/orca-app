@@ -81,6 +81,7 @@ function NoticeRow({ notice }: { notice: NativeChatComposerNotice }): React.JSX.
           view={notice.signIn}
           sentence={notice.text}
           surface="composer"
+          {...(notice.action ? { action: notice.action } : {})}
           className="px-2.5 py-1.5"
         />
         {notice.signInDetails ? (

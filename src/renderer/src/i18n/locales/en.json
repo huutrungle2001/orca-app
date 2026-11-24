@@ -22035,7 +22035,6 @@
       "signIn": {
         "title": "Sign in to {{agent}} to start chatting",
         "succeeded": "Signed in.",
-        "notConfirmed": "Sign-in could not be confirmed. Try again.",
         "cancelled": "Sign-in cancelled or failed. Try again."
       },
       "claudeSignIn": {

@@ -3225,7 +3225,6 @@
       },
       "signIn": {
         "succeeded": "Signed in.",
-        "notConfirmed": "Sign-in could not be confirmed. Try again.",
         "cancelled": "Sign-in cancelled or failed. Try again."
       }
     },

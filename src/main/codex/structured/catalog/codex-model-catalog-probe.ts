@@ -185,11 +185,12 @@ export function createCodexModelCatalogProbe(
                 ) {
                   accountKnown = true
                   const observed = response.account
+                  // A configured API key is not a sign-in the provider verified; only its own login counts.
                   signedIn =
                     typeof observed === 'object' &&
                     observed !== null &&
                     'type' in observed &&
-                    (observed.type === 'chatgpt' || observed.type === 'apiKey')
+                    observed.type === 'chatgpt'
                   if (
                     'requiresOpenaiAuth' in response &&
                     response.requiresOpenaiAuth === true &&

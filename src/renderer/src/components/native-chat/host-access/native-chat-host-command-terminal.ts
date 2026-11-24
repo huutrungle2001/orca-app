@@ -6,11 +6,14 @@ import { persistAgentLaunchTabOrder } from '@/lib/agent-session/launch/pane/laun
 import { createWebRuntimeSessionTerminalOnHost } from '@/runtime/hosted-terminals/creation/web-runtime-terminal-creation'
 import { notifyWebRuntimeTerminalCreateFailure } from '@/runtime/hosted-terminals/creation/web-runtime-terminal-create-failure-notice'
 import { startStoppedWslHostForUserAct } from '@/runtime/hosts/wsl/wsl-host-user-start'
+import { focusTerminalTabSurface } from '@/components/terminal-pane/input/focus/focus-terminal-tab-surface'
 import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 
 export type NativeChatHostCommandTerminal = {
   opening: boolean
   open: (command: string, env?: Record<string, string>) => Promise<{ tabId?: string } | null>
+  /** Brings an open terminal tab forward; false once it is gone. */
+  show: (tabId: string) => boolean
 }
 
 /** Opens a visible terminal on the chat's own host running a setup command; null without a workspace. */
@@ -79,5 +82,21 @@ export function useNativeChatHostCommandTerminal(input: {
     },
     [worktreeId, groupId, environmentId]
   )
-  return useMemo(() => (worktreeId ? { opening, open } : null), [worktreeId, opening, open])
+  const show = useCallback(
+    (tabId: string) => {
+      const store = useAppStore.getState()
+      if (!worktreeId || !store.tabsByWorktree[worktreeId]?.some((tab) => tab.id === tabId)) {
+        return false
+      }
+      store.setActiveTabType('terminal', worktreeId)
+      store.setActiveTab(tabId)
+      focusTerminalTabSurface(tabId)
+      return true
+    },
+    [worktreeId]
+  )
+  return useMemo(
+    () => (worktreeId ? { opening, open, show } : null),
+    [worktreeId, opening, open, show]
+  )
 }

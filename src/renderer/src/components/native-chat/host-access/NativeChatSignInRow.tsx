@@ -8,6 +8,7 @@ import { useTranslate } from '@/i18n/use-translate'
 import { cn } from '@/lib/class-names'
 import type { AgentSessionAccountKind } from '../../../../../shared/agent-session/failures/agent-session-availability'
 import { sayAgentSessionFailureTranslated } from '../messages/notices/agent-session-failure-words-text'
+import { NativeChatActionButton } from '../composer/controls/NativeChatActionButton'
 import {
   isNativeChatFailureRowResolved,
   NativeChatHostSetupContext,
@@ -29,18 +30,23 @@ export function NativeChatSignInRow({
   view,
   sentence,
   surface,
+  action,
   className
 }: {
   view: NativeChatSignInNoticeView
   sentence: string
   /** The composer's notice is a card; a transcript row is a plain line in the chat's colors. */
   surface: 'composer' | 'transcript'
+  /** A second step beside Sign in, e.g. the launch's own Retry. */
+  action?: { label: string; onClick: () => void; disabled?: boolean }
   className?: string
 }): React.JSX.Element {
   const t = useTranslate()
   const Icon = view.signedIn ? CircleCheck : AlertCircle
+  const button = view.button && !view.signedIn ? view.button : null
   return (
-    <div className={cn('flex min-w-0 items-center gap-2 text-xs', className)}>
+    // The buttons wrap below the sentence as one right-aligned group, so neither is ever clipped.
+    <div className={cn('flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs', className)}>
       <Icon
         aria-hidden
         className={cn(
@@ -51,6 +57,7 @@ export function NativeChatSignInRow({
       <p
         className={cn(
           TEXT,
+          'min-w-32',
           surface === 'composer' ? 'text-foreground' : 'text-chat-foreground-faint'
         )}
       >
@@ -58,7 +65,12 @@ export function NativeChatSignInRow({
           ? t('components.native-chat.signInNotice.signedIn', 'Signed in. Send again.')
           : (view.steps ?? sentence)}
       </p>
-      {view.button && !view.signedIn ? <NativeChatSignInButton button={view.button} /> : null}
+      {button || action ? (
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          {button ? <NativeChatSignInButton button={button} /> : null}
+          {action ? <NativeChatActionButton {...action} /> : null}
+        </div>
+      ) : null}
     </div>
   )
 }

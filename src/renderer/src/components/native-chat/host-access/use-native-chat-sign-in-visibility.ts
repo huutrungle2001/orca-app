@@ -17,7 +17,7 @@ export function useNativeChatSignInCandidate(
   surface: NativeChatSignInSurface,
   failureId: string | undefined,
   eligible: boolean,
-  anchor: RefObject<HTMLDivElement | null>
+  anchor: RefObject<HTMLElement | null>
 ): boolean {
   const setup = useNativeChatHostSetupView()
   const visible = useNativeChatSignInVisibility(setup)
