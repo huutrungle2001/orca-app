@@ -248,10 +248,7 @@ export function NativeChatQueuedMessageCard({
           )}
         />
       ) : null}
-      <div
-        ref={signInAnchor}
-        className={cn('flex items-center gap-1', authRecovery && 'flex-wrap')}
-      >
+      <div className={cn('flex items-center gap-1', authRecovery && 'flex-wrap')}>
         {!authRecovery || drag?.grip ? (
           <span className="relative flex size-3.5 shrink-0 items-center justify-center">
             {attention && !authRecovery && !drag?.grip ? (
@@ -334,7 +331,7 @@ export function NativeChatQueuedMessageCard({
           {!authRecovery ? sendButton : null}
         </div>
         {authRecovery ? (
-          <div className="flex w-full flex-wrap items-center gap-2">
+          <div ref={signInAnchor} className="flex w-full flex-wrap items-center gap-2">
             {showsSignIn && signIn?.button ? (
               <NativeChatSignInButton button={signIn.button} />
             ) : null}

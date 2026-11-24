@@ -53,12 +53,12 @@ export function createNativeChatSignInVisibility() {
           }
           candidates.set(key, {
             surface,
-            visible: entry.isIntersecting,
+            visible: entry.isIntersecting && entry.intersectionRatio > 0,
             full: entry.isIntersecting && entry.intersectionRatio >= 1
           })
           update()
         },
-        { root, threshold: [0, 1] }
+        { root, threshold: [0, 0.01, 1] }
       )
       observer.observe(element)
       return () => {

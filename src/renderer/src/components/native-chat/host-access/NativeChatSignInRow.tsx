@@ -159,29 +159,31 @@ export function NativeChatTranscriptSignInNotice({
     return fallback(false)
   }
   return (
-    <div ref={anchor} className={cn('min-w-0 space-y-2', className)}>
-      {view ? (
-        <NativeChatSignInRow
-          view={view}
-          sentence={nativeChatNotSignedInSentence(agent, t)}
-          surface="transcript"
-        />
-      ) : (
-        <div className="flex min-w-0 items-center gap-2 text-xs text-chat-foreground-faint">
-          <AlertCircle aria-hidden className="size-3.5 shrink-0" />
-          <p className={TEXT}>
-            {resolved
-              ? nativeChatWasNotSignedInSentence(agent, t)
-              : sent
-                ? t(
-                    'components.native-chat.signInNotice.notSent',
-                    "Not sent: {{agent}} isn't signed in.",
-                    { agent }
-                  )
-                : nativeChatNotSignedInSentence(agent, t)}
-          </p>
-        </div>
-      )}
+    <div className={cn('min-w-0 space-y-2', className)}>
+      <div ref={anchor}>
+        {view ? (
+          <NativeChatSignInRow
+            view={view}
+            sentence={nativeChatNotSignedInSentence(agent, t)}
+            surface="transcript"
+          />
+        ) : (
+          <div className="flex min-w-0 items-center gap-2 text-xs text-chat-foreground-faint">
+            <AlertCircle aria-hidden className="size-3.5 shrink-0" />
+            <p className={TEXT}>
+              {resolved
+                ? nativeChatWasNotSignedInSentence(agent, t)
+                : sent
+                  ? t(
+                      'components.native-chat.signInNotice.notSent',
+                      "Not sent: {{agent}} isn't signed in.",
+                      { agent }
+                    )
+                  : nativeChatNotSignedInSentence(agent, t)}
+            </p>
+          </div>
+        )}
+      </div>
       {details}
     </div>
   )

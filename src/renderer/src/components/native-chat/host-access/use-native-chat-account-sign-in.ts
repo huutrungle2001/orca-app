@@ -220,6 +220,9 @@ export function useNativeChatSignIn(
       if (ticket !== attempt.current) {
         return
       }
+      if (codexAccountId) {
+        retryCodexLookup()
+      }
       inFlight.current = false
       setState({
         identity,
@@ -243,6 +246,7 @@ export function useNativeChatSignIn(
     terminal,
     terminalAllowed,
     worktreeId,
+    retryCodexLookup,
     finish
   ])
   const available = Boolean(
