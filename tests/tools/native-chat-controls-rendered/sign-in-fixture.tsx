@@ -14,11 +14,15 @@ import { useNativeChatSignIn } from '@/components/native-chat/host-access/use-na
 import { useNativeChatSignInVisibility } from '@/components/native-chat/host-access/use-native-chat-sign-in-visibility'
 import { NativeChatQueuedMessageCard } from '@/components/native-chat/queue/NativeChatQueuedMessageCard'
 import { agentSessionUnresolvedFailureRows } from '../../../src/shared/agent-session/failures/agent-session-visible-failures'
+import { agentSessionFailureFact } from '../../../src/shared/agent-session/failures/agent-session-failure'
+import { agentSessionFailureSentence } from '../../../src/shared/agent-session/failures/agent-session-failure-words'
 import type { AgentJournalRenderItem } from '../../../src/shared/agent-session/journal/agent-session-journal-types'
 import { AGENT_SESSION_MODEL_CATALOG_CONFIRM_SIGN_IN_RUNTIME_CAPABILITY } from '../../../src/shared/agent-session/capabilities/structured-agent-session-surface-capabilities'
 
 const target = { kind: 'local' } as const
 const rowId = 'fixture-auth-failure'
+const managedFailure = agentSessionFailureFact('notSignedIn', { account: 'managed' })
+const systemFailure = agentSessionFailureFact('notSignedIn', { account: 'system' })
 const olderRow: AgentJournalRenderItem = {
   itemId: rowId,
   sequence: 1,
@@ -27,8 +31,8 @@ const olderRow: AgentJournalRenderItem = {
   body: {
     kind: 'status',
     tone: 'error',
-    text: 'Fixture auth failure',
-    failure: { kind: 'notSignedIn', account: 'managed' }
+    text: agentSessionFailureSentence(managedFailure, 'row', { agentName: 'Codex' }),
+    failure: managedFailure
   }
 }
 const latest = nativeChatSignInContext({
@@ -132,8 +136,16 @@ const controls = {
     })),
   batch: () =>
     observerCallbacks.forEach((callback, observer) => {
-      const entry = (intersectionRatio: number) =>
-        ({ isIntersecting: intersectionRatio > 0, intersectionRatio }) as IntersectionObserverEntry
+      const bounds = new DOMRectReadOnly()
+      const entry = (intersectionRatio: number): IntersectionObserverEntry => ({
+        isIntersecting: intersectionRatio > 0,
+        intersectionRatio,
+        time: performance.now(),
+        target: document.body,
+        rootBounds: bounds,
+        boundingClientRect: bounds,
+        intersectionRect: bounds
+      })
       callback([entry(1), entry(0)], observer)
     })
 }
@@ -183,7 +195,7 @@ function Pane({ managed, failure, send }: { managed: boolean; failure: number; s
                 text: 'Keep the original message.',
                 state: 'returned',
                 hold: 'returned',
-                returnedRejection: { kind: 'notSignedIn', account: 'system' }
+                returnedRejection: systemFailure
               }}
               pending={null}
               chatWorktreeId={null}
