@@ -25,6 +25,9 @@ import { PhoneSharedAgentStore, type PhoneSharedAgent } from './phone-shared-age
 
 type Link = SharedHostRelayLink<PhoneSharedAgent>
 
+// While a page shows held messages, Orca Cloud is asked how they stand no more often than this.
+const HELD_READ_EVERY_MS = 15_000
+
 const failure = (method: string, code: string, message: string): RpcFailure => ({
   id: method,
   ok: false,
@@ -51,6 +54,7 @@ export class PhoneSharedAgents {
   private readonly links = new Map<string, Link>()
   private readonly listeners = new Set<() => void>()
   private readonly held: PhoneSharedAgentHeld
+  private readonly heldReadAt = new Map<string, number>()
 
   constructor(private readonly now: () => number = Date.now) {
     this.held = new PhoneSharedAgentHeld({
@@ -168,6 +172,22 @@ export class PhoneSharedAgents {
       released = true
       stop?.()
     }
+  }
+
+  /** Reads Orca Cloud's states for the computer's agents with a message waiting; at most so often. */
+  async refreshHeld(pairedHostId: string): Promise<void> {
+    const now = this.now()
+    if (now - (this.heldReadAt.get(pairedHostId) ?? 0) < HELD_READ_EVERY_MS) {
+      return
+    }
+    this.heldReadAt.set(pairedHostId, now)
+    await Promise.all(
+      this.store
+        .list()
+        .filter((entry) => entry.pairedHostId === pairedHostId)
+        .filter((entry) => entry.held.some((held) => this.held.isWaiting(held)))
+        .map((entry) => this.held.refresh(entry))
+    )
   }
 
   async sendAgain(entry: PhoneSharedAgent, clientMessageId: string): Promise<boolean> {
