@@ -15,7 +15,6 @@ import { folderWorkspaceKey } from '../../../../../shared/workspace/identity/wor
 import { runtimeTargetEnvironmentId } from '@/runtime/rpc/targets/runtime-client-target'
 import type { Bot } from '../../../../../shared/bot-types'
 import type { BotItem, BotItemStatus } from '../../../../../shared/bots/bot-items'
-import { botItemLeadAskId } from '../../../../../shared/bots/bot-item-question-answers'
 import { useBotItemQuestionSteps } from './use-bot-item-question-steps'
 import { NativeChatJumpToLatest } from '../../native-chat/viewport/scroll/NativeChatJumpToLatest'
 import { NativeChatPaneFileDropSurface } from '../../native-chat/attachments/intake/NativeChatPaneFileDropSurface'
@@ -249,13 +248,8 @@ export function BotItemBody({
     [fileContext?.fileLinkContext, runtimeContext]
   )
   // `waitingLine`: the question the comment box names, until a reply is on its way.
-  const { steps, sent, quick, fromBox, answerNone, waitingLine } = useBotItemQuestionSteps(
-    bot,
-    item,
-    view.events,
-    sendLatest,
-    pending.shown
-  )
+  const { steps, sent, quick, fromBox, answerNone, waitingLine, leadAskId } =
+    useBotItemQuestionSteps(bot, item, view.events, sendLatest, pending.shown)
   const quickReplies = useMemo(
     () =>
       deleted
@@ -274,7 +268,7 @@ export function BotItemBody({
           },
     [deleted, comment, quick, answerNone, steps, sent]
   )
-  const loadingTarget = useWaitingQuestionPage(botItemLeadAskId(item, view.events), view)
+  const loadingTarget = useWaitingQuestionPage(leadAskId, view)
   const answering = steps?.sending ?? pending.shown.some(({ failed }) => !failed)
   const waitingOn = waitingLine ? { ...waitingLine, asker: item.owner.name ?? bot.name } : null
   const needsYou = useBotItemNeedsYouJump({

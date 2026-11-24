@@ -16,11 +16,11 @@ import {
   botItemNamedAnswers
 } from './bot-item-answer-lines'
 import {
-  botItemBoxReply,
   botItemWaitingAsk,
   botItemWaitingLine,
   type BotItemWaitingLine
 } from './bot-item-question-answers'
+import { botItemBoxReply } from './bot-item-reply-target'
 import type { BotItemPendingComment } from './bot-item-pending-comments'
 
 const NO_ASK: BotItemQuestionShape = { body: '', decisions: [] }

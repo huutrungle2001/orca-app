@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { BotItem, BotItemEvent } from '../../../../src/shared/bots/bot-items'
 import { mergeBotItemEvents } from '../../../../src/shared/bots/bot-item-merge'
+import { botItemWaitingAsk } from '../../../../src/shared/bots/bot-item-question-answers'
+import { botItemLeadAskId } from '../../../../src/shared/bots/bot-item-reply-target'
 import type { RpcClient } from '../../transport/rpc/rpc-client-contract'
 import { readBotItem } from './bot-item-operations'
 
@@ -124,8 +126,11 @@ export function usePhoneBotItemView({
 
   const own = loaded?.uid === uid ? loaded : null
   // The waiting question is read even when older than the loaded page (later comments can push it
-  // back): earlier pages load until it shows.
-  const waitingOn = own ? (own.item.waitingAsk ?? own.item.question?.eventId) : undefined
+  // back): earlier pages load until it shows. One the loaded events already show waiting is the one,
+  // whatever an earlier read of the item named.
+  const waitingOn = own
+    ? botItemLeadAskId(own.item, own.events, botItemWaitingAsk(own.item, own.events))
+    : undefined
   const waitingUnread =
     waitingOn !== undefined && !own?.events.some((event) => event.id === waitingOn)
   const earlierCursor = own?.earlierCursor ?? null

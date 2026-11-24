@@ -12,12 +12,11 @@ import {
 import { botItemActivity, botItemNeedsYouEntryKey } from '../../shared/bots/bot-item-activity'
 import { botItemQuestionView } from '../../shared/bots/bot-item-ask'
 import {
-  botItemBoxReply,
-  botItemLeadAskId,
   botItemQuestionPairing,
   botItemWaitingAsk,
   botItemWaitingLine
 } from '../../shared/bots/bot-item-question-answers'
+import { botItemBoxReply, botItemLeadAskId } from '../../shared/bots/bot-item-reply-target'
 import { waitingAskChange } from './bot-item-waiting-ask-keep'
 import { botItemChangeMail } from './bot-items-mail-text'
 import type { BotItemBotActor, BotItemOwnerActor } from './bot-items-input'
@@ -95,10 +94,11 @@ function item(path = ':memory:') {
     const entries = botItemActivity(shown, events)
     return {
       shown,
+      events,
       replyingTo: botItemWaitingLine(shown, events),
       // Where the header's Reply leads, and the ask earlier pages are read for.
       needsYouKey: botItemNeedsYouEntryKey(shown, entries),
-      lead: botItemLeadAskId(shown, events),
+      lead: botItemLeadAskId(shown, events, botItemWaitingAsk(shown, events)),
       waitingAsk: botItemWaitingAsk(shown, events)?.askId ?? null,
       asks: pairing.questions,
       quotes: pairing.replies,
@@ -295,6 +295,45 @@ it('keeps a note sent with no line named out of an earlier ask, after a later Ne
   const after = view()
   expect(after.asks.get(botItemEventId(asked))?.answers).toEqual([null])
   expect(after.quotes.has(botItemEventId(note.id))).toBe(false)
+})
+
+it('offers no reply target for an ask the item read names when a close read after it is loaded', () => {
+  const { store, uid, ask, view, hostItem, boxSend } = item()
+  const asked = ask(['Merge PR #22?'])
+  // One read: the item first, still asking; the agent then closes it; then the newest page, which
+  // starts after the ask and holds the close.
+  const readAsking = hostItem()
+  expect(readAsking).toMatchObject({ status: 'needs_you', waitingAsk: botItemEventId(asked) })
+  store.set(uid, { status: 'done' }, AGENT, NOW)
+  const read = view(asked, undefined, readAsking)
+  expect(read.events.some(({ id }) => id === botItemEventId(asked))).toBe(false)
+  expect(read.replyingTo).toBeNull()
+  expect(read.lead).toBeUndefined()
+  // The words go out naming nothing; the closed item keeps them as a comment, answering nothing.
+  expect(boxSend('Never mind then', read)).toEqual({
+    questionId: undefined,
+    plain: true,
+    answers: undefined
+  })
+  expect(store.get(uid)?.status).toBe('done')
+})
+
+it('still replies to the ask the item read names when only later comments are loaded', () => {
+  const { store, uid, ask, view, hostItem, boxSend } = item()
+  const asked = ask(['Merge PR #22?'])
+  const readAsking = hostItem()
+  // Progress that ends nothing: a comment that asks nothing, the ask still waiting on an earlier page.
+  store.set(uid, { status: 'needs_you', comment: 'CI is green now.' }, AGENT, NOW)
+  const read = view(asked, undefined, readAsking)
+  expect(read.events.some(({ id }) => id === botItemEventId(asked))).toBe(false)
+  expect(read.replyingTo).toMatchObject({ eventId: botItemEventId(asked), line: 'Merge PR #22?' })
+  expect(read.lead).toBe(botItemEventId(asked))
+  expect(boxSend('Yes', read)).toEqual({
+    questionId: botItemEventId(asked),
+    plain: false,
+    answers: botItemEventId(asked)
+  })
+  expect(store.get(uid)?.status).toBe('working')
 })
 
 it('offers no reply target for an ask the item closed after its Activity was read', () => {

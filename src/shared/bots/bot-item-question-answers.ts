@@ -322,7 +322,7 @@ export function botItemWaitingLine(
     }
   }
   const { question } = item
-  if (item.status !== 'needs_you' || !question) {
+  if (item.status !== 'needs_you' || !question || !botItemReadAsksStand(item, events)) {
     return null
   }
   // Another ask waits, still on an earlier page: the item's own question doesn't stand in for it.
@@ -343,26 +343,16 @@ export function botItemWaitingLine(
     : null
 }
 
-/** The ask the item's view leads to (Reply, and the earlier pages read to draw it): the one its events
- *  show waiting, else the one the host names. */
-export function botItemLeadAskId(
-  item: BotItemPairingItem & Pick<BotItem, 'question'>,
+/** The asks the item's read names still stand: no event read after it ended them (a close, or a move
+ *  off Needs you no answer made). Later comments, links and the like end nothing, so an ask still on an
+ *  earlier page stays the one to answer. */
+export function botItemReadAsksStand(
+  item: Partial<Pick<BotItem, 'lastEventId'>>,
   events: readonly BotItemEvent[]
-): string | undefined {
-  return botItemWaitingAsk(item, events)?.askId ?? item.waitingAsk ?? item.question?.eventId
-}
-
-/** How the comment box's words go out while no ask of several waits: naming the question its
- *  "Replying to" names; else plain, answering nothing, whenever the agent waits on one (its × closed,
- *  or an ask this view hasn't read yet), so the host never takes them as an answer no box showed. */
-export function botItemBoxReply(
-  item: Pick<BotItem, 'waitingAsk'>,
-  oneLine: BotItemWaitingLine | null,
-  replyingTo: string | null
-): { questionId: string | undefined; plain: boolean } {
-  const named = oneLine !== null && replyingTo === oneLine.id
-  return {
-    questionId: named ? oneLine.eventId : undefined,
-    plain: !named && (oneLine !== null || item.waitingAsk !== undefined)
-  }
+): boolean {
+  const last = item.lastEventId === undefined ? null : parseBotItemEventId(item.lastEventId)
+  return (
+    last === null ||
+    !events.some((event) => (parseBotItemEventId(event.id) ?? 0) > last && endsAsks(event))
+  )
 }

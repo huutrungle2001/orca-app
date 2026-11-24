@@ -23,11 +23,11 @@ import {
   botItemRideAlongText
 } from '../../../../../shared/bots/bot-item-answer-lines'
 import {
-  botItemBoxReply,
   botItemWaitingAsk,
   botItemWaitingLine,
   type BotItemWaitingLine
 } from '../../../../../shared/bots/bot-item-question-answers'
+import { botItemBoxReply, botItemLeadAskId } from '../../../../../shared/bots/bot-item-reply-target'
 import type {
   BotItemPendingComment,
   BotItemPendingIntent
@@ -106,6 +106,8 @@ export function useBotItemQuestionSteps(
   answerNone: () => void
   /** What the comment box replies to: with several questions, the line its draft was started on. */
   waitingLine: BotItemWaitingLine | null
+  /** The ask the view leads to (Reply, and the earlier pages read for it), from this read's pairing. */
+  leadAskId: string | undefined
 } {
   // As cheap as the box's own waiting-line read, on each render.
   const asked = botItemWaitingAsk(item, events)
@@ -320,6 +322,7 @@ export function useBotItemQuestionSteps(
         oneLine &&
           !pending.some((entry) => !entry.failed && entry.intent?.askId === oneLine.eventId)
         ? oneLine
-        : null
+        : null,
+    leadAskId: botItemLeadAskId(item, events, asked)
   }
 }

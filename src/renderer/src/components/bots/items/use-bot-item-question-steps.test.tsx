@@ -288,6 +288,7 @@ it('posts a typed answer to a single question at once, naming the question it an
     question: { eventId: 'e2', text: botItemAskText(single) }
   })
   expect(hook.result.current.steps).toBeNull()
+  expect(hook.result.current.leadAskId).toBe('e2')
   const line = hook.result.current.waitingLine!
   act(() => hook.result.current.fromBox('the internal ones', [], line.id))
   expect(posted.map(({ text }) => text)).toEqual(['the internal ones'])
@@ -313,6 +314,8 @@ it('sends words plain while the ask the host names is still on an earlier page',
   })
   expect(hook.result.current.steps).toBeNull()
   expect(hook.result.current.waitingLine).toBeNull()
+  // Earlier pages are read for it.
+  expect(hook.result.current.leadAskId).toBe('e2')
   act(() => hook.result.current.fromBox('Thanks, still deciding', [], null))
   // Never taken as the answer to the line still open: it names nothing and goes out plain.
   expect(posted.map(({ questionId, plain }) => ({ questionId, plain }))).toEqual([

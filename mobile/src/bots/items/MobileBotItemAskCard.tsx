@@ -9,7 +9,10 @@ import {
   type BotItemQuestionShape
 } from '../../../../src/shared/bots/bot-item-ask'
 import { botItemAnswersText } from '../../../../src/shared/bots/bot-item-answer-lines'
-import { botItemWaitingAsk } from '../../../../src/shared/bots/bot-item-question-answers'
+import {
+  botItemReadAsksStand,
+  botItemWaitingAsk
+} from '../../../../src/shared/bots/bot-item-question-answers'
 import type { BotItem, BotItemEvent } from '../../../../src/shared/bots/bot-items'
 import type { AskAnswerSelection } from '../../../../src/shared/native-chat/input/questions/native-chat-ask-answer'
 import type { AskPrompt } from '../../../../src/shared/native-chat/input/questions/native-chat-ask-types'
@@ -34,7 +37,9 @@ export function botItemOpenAsk(item: BotItem, events: readonly BotItemEvent[]): 
     item.status !== 'needs_you' ||
     !question ||
     !decisions?.length ||
-    events.some((event) => event.id === question.eventId)
+    events.some((event) => event.id === question.eventId) ||
+    // Closed, or moved on, since the item was read: its question no longer waits.
+    !botItemReadAsksStand(item, events)
   ) {
     return null
   }
