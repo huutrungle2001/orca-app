@@ -71,7 +71,7 @@ export const CONNECTOR_METHODS = [
         cloud?.cloudFeatures()?.has(CONNECTOR_REPLIES_OUTBOX_FEATURE) === true
           ? { answerDeliveryId: target.answerDeliveryId }
           : {}
-      connectorPostAttempts.attempted(paneKey)
+      const refused = connectorPostAttempts.attempted(paneKey)
       const sent = await cloud?.reply({
         replyId,
         conversation,
@@ -81,6 +81,9 @@ export const CONNECTOR_METHODS = [
         ...(review ? { review } : {}),
         ...keyed
       })
+      if (!sent?.ok) {
+        refused()
+      }
       if (!sent) {
         throw new Error('connector_not_connected')
       }

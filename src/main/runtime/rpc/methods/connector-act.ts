@@ -240,9 +240,7 @@ export const CONNECTOR_ACT_METHOD = defineMethod({
     // Only a post into the thread the chat answers is its own answer; one elsewhere is other work.
     const intoThread =
       verb === 'reply' || ((verb === 'post' || verb === 'attach') && !ref && conversation !== null)
-    if (intoThread) {
-      connectorPostAttempts.attempted(chatPaneKey(sessionId))
-    }
+    const refused = intoThread ? connectorPostAttempts.attempted(chatPaneKey(sessionId)) : () => {}
     const answer = await postConnectorAction(
       cloud,
       {
@@ -256,6 +254,9 @@ export const CONNECTOR_ACT_METHOD = defineMethod({
       },
       signal
     )
+    if (answer.ok && !answer.value.ok) {
+      refused()
+    }
     if (!answer.ok) {
       throw actFailure(verb, ref, answer, {
         server: orcaSignInServer(runtime),
