@@ -76,6 +76,15 @@ describe('an empty turn is asked once more, from its live end only', () => {
     expect(p.outcomes()).toEqual({ d1: { outcome: 'no_answer', head: 'd1' } })
   })
 
+  it('never holds a row an older build admitted: its own quiet rule fills it live', async () => {
+    const p = asking('accepted')
+    admit(p.db, 'm1', asked('d1'))
+    p.db.prepare('UPDATE journal_connector_replies SET quiet_rule=NULL').run()
+    p.show([p.message('m1'), ...p.turn('item:t1', 'm1', 'completed')])
+    await liveEnd(p, 'item:t1', 'm1', false)
+    expect([asks.length, p.outcomes().d1?.outcome]).toEqual([0, 'no_answer'])
+  })
+
   it('never asks after a tool that may have acted; the thread hears so at once', async () => {
     const p = asking('accepted')
     admit(p.db, 'm1', asked('d1'))

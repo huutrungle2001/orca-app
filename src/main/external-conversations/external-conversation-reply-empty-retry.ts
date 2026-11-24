@@ -71,6 +71,8 @@ export function emptyTurnRetry(deps: {
         !turn.askedBy ||
         turn.toolsRan === true ||
         own.length === 0 ||
+        // An older build's row keeps its own quiet rule, which only the live fill applies.
+        own.some((row) => row.quietRule === undefined) ||
         connectorReplyTurnOutcome(turn).outcome !== 'no_answer' ||
         turn.turnStartedAt === undefined
       ) {

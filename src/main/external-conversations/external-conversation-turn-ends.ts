@@ -155,7 +155,8 @@ export async function endRepliedTurn(
     prose: (link.bot ? turn.turnBotProse : turn.turnProse) ?? '',
     ...(link.bot && turn.turnProse ? { earlierProse: turn.turnProse } : {}),
     toolsRan: turn.turnToolsRan === true,
-    live: true,
+    // A leave line owed at this end would post before a retry's answer: no retry then.
+    ...(end.leave.owed ? {} : { live: true as const }),
     ...retryAskerOf(turn.opener?.body, turn.stamps),
     bot: Boolean(link.bot),
     links: link.bot ? await links() : [],

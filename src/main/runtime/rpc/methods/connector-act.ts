@@ -237,7 +237,7 @@ export const CONNECTOR_ACT_METHOD = defineMethod({
       )
     }
     const toSlack = actionGoesToSlack({ verb, ref, title: args.title, conversation })
-    if (verb === 'post' || verb === 'reply' || verb === 'attach') {
+    if (verb === 'reply' || (toSlack && (verb === 'post' || verb === 'attach'))) {
       connectorPostAttempts.attempted(chatPaneKey(sessionId))
     }
     const answer = await postConnectorAction(
