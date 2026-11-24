@@ -20,6 +20,7 @@ import { defineMethod } from '../core'
 import { botTurnFor } from '../../../bots/bot-turn-for'
 import { sessionCallerOf } from '../../orchestration/addressing/orchestration-caller-identity'
 import { noteBotRequestPost } from './orchestration/messaging/bot-request-outcome'
+import { connectorPostAttempts } from '../../../external-conversations/connector-post-attempts'
 import { orcaSignInServer } from '../../../bots/orca-sign-in-server'
 import {
   hostNotSignedIn,
@@ -236,6 +237,9 @@ export const CONNECTOR_ACT_METHOD = defineMethod({
       )
     }
     const toSlack = actionGoesToSlack({ verb, ref, title: args.title, conversation })
+    if (verb === 'post' || verb === 'reply' || verb === 'attach') {
+      connectorPostAttempts.attempted(chatPaneKey(sessionId))
+    }
     const answer = await postConnectorAction(
       cloud,
       {

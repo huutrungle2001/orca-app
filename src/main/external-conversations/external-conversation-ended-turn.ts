@@ -34,6 +34,8 @@ export type EndedChatTurn = {
   turnItemId?: string
   stamps?: ConnectorReplyStamp[]
   turnProse?: string
+  /** A bot's answer in it: its prose after its last tool call (structuredAgentSessionTurnReply). */
+  turnBotProse?: string
   turnToolsRan?: boolean
 }
 
@@ -112,16 +114,17 @@ function outboxTurn(
   submissions: AgentJournalSnapshot['submissions'],
   opener: AgentJournalRenderItem | null | undefined,
   turnId: string
-): Pick<EndedChatTurn, 'turnItemId' | 'stamps' | 'turnProse' | 'turnToolsRan'> {
+): Pick<EndedChatTurn, 'turnItemId' | 'stamps' | 'turnProse' | 'turnBotProse' | 'turnToolsRan'> {
   const turnItemId = endedChatTurnRow(items, turnId)?.itemId
   if (!turnItemId) {
     return {}
   }
-  const { prose, toolsRan } = structuredAgentSessionTurnReply(items, turnItemId)
+  const { prose, botProse, toolsRan } = structuredAgentSessionTurnReply(items, turnItemId)
   return {
     turnItemId,
     stamps: connectorReplyTurnStamps({ items, submissions }, opener, turnItemId),
     turnProse: prose,
+    turnBotProse: botProse,
     turnToolsRan: toolsRan
   }
 }
