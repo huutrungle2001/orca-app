@@ -22574,8 +22574,6 @@
     },
     "antigravity": {
       "chatSignIn": "Oturum aç",
-      "chatChangeAccount": "Hesabı değiştir",
-      "chatRetry": "Oturum açmayı yeniden dene",
       "chatCancel": "İptal",
       "chatCopyLink": "Oturum açma bağlantısını kopyala",
       "chatCopyFailed": "Bağlantı kopyalanamadı.",
@@ -22617,7 +22615,6 @@
       "enterpriseOption": "Kuruluşunuzun lisansı",
       "apiKeyGet": "API anahtarı al",
       "location": "Konum",
-      "enterpriseFieldsShort": "Bir proje ve konum girin.",
       "loadFailed": "agy hesapları yüklenemedi",
       "loading": "Hesaplar yükleniyor…",
       "notSignedIn": "Oturum açılmadı",
