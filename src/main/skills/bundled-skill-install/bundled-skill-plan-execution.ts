@@ -1,5 +1,6 @@
 import type {
   BundledSkillInstallResult,
+  BundledSkillOp,
   BundledSkillOpOutcome,
   BundledSkillOutcome,
   BundledSkillPlanEntry
@@ -8,6 +9,7 @@ import {
   holdsCurrentBundledSkillCopy,
   isBundledSkillAutoUpdateOp
 } from '../../../shared/skills/bundled/bundled-skill-summary'
+import { bundledSkillOpBackupPaths } from '../../../shared/skills/bundled/bundled-skill-backup-refusal'
 import { applyOp, type AppliedOp, type SkillRun } from './bundled-skill-op-application'
 import { buildBundledSkillPlan, type BundledSkillPlanInput } from './bundled-skill-plan'
 import { findBundledSkillSource } from './bundled-skill-source-selection'
@@ -99,6 +101,35 @@ export async function executeBundledSkillPlan(
 }
 
 /**
+ * Places this run found no longer as planned, judged per placement rather than by the op's own
+ * status: an op that did not finish (unless its own copy was rechecked as current) disproves its
+ * own place, and any op whose retirement did not simply remove a verified old copy (it failed, was
+ * refused, or backed up an edit made after planning) disproves each retired place. No payload is
+ * read to decide this.
+ */
+function disprovedPlacements(
+  ops: readonly BundledSkillOp[],
+  ran: BundledSkillOutcome | undefined
+): Set<string> {
+  const stale = new Set<string>()
+  for (const outcome of ran?.ops ?? []) {
+    if (outcome.status !== 'done' && !outcome.currentConfirmed) {
+      stale.add(outcome.path)
+    }
+    const retirementClean =
+      outcome.status === 'done' &&
+      !outcome.backupRefusal &&
+      bundledSkillOpBackupPaths(outcome).length === 0
+    if (!retirementClean) {
+      for (const previous of ops.find((op) => op.path === outcome.path)?.previous ?? []) {
+        stale.add(previous.path)
+      }
+    }
+  }
+  return stale
+}
+
+/**
  * Plans each named installed skill under its locks and applies only hash-verified released-copy
  * updates; edited, foreign or interrupted locations are never touched. Each write re-checks its
  * location, and one skill's failure leaves the others' outcomes intact. `recordOnly` skips every
@@ -136,18 +167,9 @@ export async function autoUpdateBundledSkills(
         ran = await runSkill({ input, entry: { ...entry, ops }, source })
         skills.push(ran)
       }
-      // An already-current copy (keep-only, so nothing ran) written before markers existed. A
-      // location this run rechecked and found changed no longer counts as the plan saw it: an op
-      // that did not finish may have failed its own recheck or one of its retired placements'.
-      const stale = new Set(
-        (ran?.ops ?? []).flatMap((outcome) => {
-          if (outcome.status === 'done' || outcome.currentConfirmed) {
-            return []
-          }
-          const planned = ops.find((op) => op.path === outcome.path)
-          return [outcome.path, ...(planned?.previous ?? []).map((previous) => previous.path)]
-        })
-      )
+      // An already-current copy (keep-only, so nothing ran) written before markers existed. The
+      // locked plan's observation of a place no longer counts once this run disproved it.
+      const stale = disprovedPlacements(ops, ran)
       const fresh = { ...entry, ops: entry.ops.filter((op) => !stale.has(op.path)) }
       if (holdsCurrentBundledSkillCopy(fresh)) {
         await recordOrcaCopy(input, entry)
