@@ -237,9 +237,13 @@ export const CONNECTOR_ACT_METHOD = defineMethod({
       )
     }
     const toSlack = actionGoesToSlack({ verb, ref, title: args.title, conversation })
-    // Only a post into the thread the chat answers is its own answer; one elsewhere is other work.
+    // Only a post into the thread the chat answers is its own answer; one elsewhere is other work,
+    // and a file staged for a later post isn't a post yet.
+    const staging = args.upload !== undefined || args.stage === true
     const intoThread =
-      verb === 'reply' || ((verb === 'post' || verb === 'attach') && !ref && conversation !== null)
+      !staging &&
+      (verb === 'reply' ||
+        ((verb === 'post' || verb === 'attach') && !ref && conversation !== null))
     const refused = intoThread ? connectorPostAttempts.attempted(chatPaneKey(sessionId)) : () => {}
     const answer = await postConnectorAction(
       cloud,
@@ -254,7 +258,8 @@ export const CONNECTOR_ACT_METHOD = defineMethod({
       },
       signal
     )
-    if (answer.ok && !answer.value.ok) {
+    // Refused outright, by the source or the cloud: nothing reached the thread.
+    if (answer.ok ? !answer.value.ok : answer.status !== null && answer.status < 500) {
       refused()
     }
     if (!answer.ok) {

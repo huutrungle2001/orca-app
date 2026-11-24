@@ -81,7 +81,8 @@ export const CONNECTOR_METHODS = [
         ...(review ? { review } : {}),
         ...keyed
       })
-      if (!sent?.ok) {
+      // Never sent, or refused outright: nothing reached the thread. A lost answer may have posted.
+      if (!sent || (!sent.ok && sent.status !== null && sent.status < 500)) {
         refused()
       }
       if (!sent) {
