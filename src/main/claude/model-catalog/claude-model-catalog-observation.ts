@@ -20,6 +20,11 @@ export function readClaudeCatalogObservation(
   const listing = replies.get('orca-model-discovery')
   const models = listedModels(listing)
   const settings = replies.get('orca-model-settings')
+  const initialization = replies.get('orca-signin-discovery')
+  const identity = record(record(initialization)?.account)
+  const hasCredential = [identity?.tokenSource, identity?.apiKeySource].some(
+    (source) => typeof source === 'string' && source.length > 0 && source !== 'none'
+  )
   const applied = record(record(settings)?.applied)
   const configured =
     applied &&
@@ -34,9 +39,10 @@ export function readClaudeCatalogObservation(
     models: wireClaudeModels(models),
     origin: 'probe',
     complete: isCompleteClaudeModelListing(listing) && configured !== undefined,
+    ...(hasCredential ? { signedIn: true } : {}),
     ...(fastModeSupport ? { fastModeSupport } : {}),
     ...(configured ? { configured } : {}),
-    ...(claudeCatalogSignedOut(replies.get('orca-signin-discovery'), settings, env)
+    ...(claudeCatalogSignedOut(initialization, settings, env)
       ? { unavailable: { reason: 'notSignedIn', account } }
       : {})
   }

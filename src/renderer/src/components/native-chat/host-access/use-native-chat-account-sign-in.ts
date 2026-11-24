@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/store/index'
 import { useAppStoreWithHostStatuses } from '@/store/slices/runtime-status/views/use-runtime-status-view'
 import { translate } from '@/i18n/i18n'
@@ -6,7 +6,7 @@ import { signInToClaudeAccount } from '@/lib/provider-accounts/claude-account-si
 import { getRendererAppPlatform } from '@/app-shell/platform/renderer-app-platform'
 import { callStructuredAgentSession } from '@/runtime/native-chat/requests/structured-agent-session-call'
 import { structuredAgentSessionHostSupports } from '@/runtime/native-chat/host-capabilities/structured-agent-session-host-support'
-import { AGENT_SESSION_MODEL_CATALOG_RELIST_RUNTIME_CAPABILITY } from '../../../../../shared/agent-session/capabilities/structured-agent-session-surface-capabilities'
+import { AGENT_SESSION_MODEL_CATALOG_CONFIRM_SIGN_IN_RUNTIME_CAPABILITY } from '../../../../../shared/agent-session/capabilities/structured-agent-session-surface-capabilities'
 import type { AgentSessionModelCatalogResult } from '../../../../../shared/agent-session/agent-session-wire'
 import type { RuntimeClientTarget } from '../../../../../shared/remote-runtime/host-catalog/runtime-client-target'
 import type { AgentSessionAccountKind } from '../../../../../shared/agent-session/failures/agent-session-availability'
@@ -98,53 +98,58 @@ export function useNativeChatSignIn(
   })
   const command = agentSessionSignInCommand(agent, { account, remote: !local, shell })
   const terminalAllowed = !(agent === 'codex' && account === 'managed') && !blocksTerminal
-  const identity = `${agent}:${local ? 'local' : input.target.kind === 'environment' ? input.target.environmentId : ''}:${sessionId ?? ''}:${lastAccountId ?? claudeAccountId ?? account ?? ''}`
+  const identity = JSON.stringify([
+    agent,
+    target.kind === 'environment' ? target.environmentId : null,
+    sessionId,
+    lastAccountId ?? claudeAccountId ?? account,
+    codexSelection,
+    failureKey
+  ])
   const [state, setState] = useState<{
     identity: string
-    failureKey: string
     busy: boolean
-    resolvedFor: string | null
+    resolved: boolean
     announcement: string
   }>({
     identity,
-    failureKey,
     busy: false,
-    resolvedFor: null,
+    resolved: false,
     announcement: ''
   })
-  if (state.identity !== identity || (!state.busy && state.failureKey !== failureKey)) {
-    setState({ identity, failureKey, busy: false, resolvedFor: null, announcement: '' })
+  if (state.identity !== identity) {
+    setState({ identity, busy: false, resolved: false, announcement: '' })
   }
   const inFlight = useRef(false)
   const [terminalSignIn, setTerminalSignIn] = useState<NativeChatTerminalSignIn | null>(null)
   const attempt = useRef(0)
-  useEffect(
+  useLayoutEffect(
     () => () => {
       ++attempt.current
       inFlight.current = false
     },
     [identity]
   )
-  const resolved = state.identity === identity && state.resolvedFor === failureKey
+  const resolved = state.identity === identity && state.resolved
   const busy = state.identity === identity && state.busy
   const recheck = useCallback(
     async (ticket: number) => {
       if (!sessionId || ticket !== attempt.current) {
         return false
       }
-      const relist = await structuredAgentSessionHostSupports(
+      const supportsSignInCheck = await structuredAgentSessionHostSupports(
         target,
-        AGENT_SESSION_MODEL_CATALOG_RELIST_RUNTIME_CAPABILITY
+        AGENT_SESSION_MODEL_CATALOG_CONFIRM_SIGN_IN_RUNTIME_CAPABILITY
       )
-      if (!relist || ticket !== attempt.current) {
+      if (!supportsSignInCheck || ticket !== attempt.current) {
         return false
       }
       const result = await callStructuredAgentSession<AgentSessionModelCatalogResult>(
         target,
         'agentSession.modelCatalog',
-        { agent, sessionId, waitForListing: true, relist: true }
+        { agent, sessionId, confirmSignIn: true }
       ).catch(() => null)
-      return ticket === attempt.current && result?.freshProbe === true
+      return ticket === attempt.current && result?.signInConfirmed === true
     },
     [agent, sessionId, target]
   )
@@ -156,9 +161,8 @@ export function useNativeChatSignIn(
       inFlight.current = false
       setState({
         identity,
-        failureKey,
         busy: false,
-        resolvedFor: signedIn ? failureKey : null,
+        resolved: signedIn,
         announcement: signedIn
           ? translate('components.native-chat.signIn.succeeded', 'Signed in.')
           : translate(
@@ -170,7 +174,7 @@ export function useNativeChatSignIn(
         onSignInRechecked?.()
       }
     },
-    [identity, failureKey, onSignInRechecked]
+    [identity, onSignInRechecked]
   )
   if (terminalSignIn && terminalSignIn.identity !== identity) {
     setTerminalSignIn(null)
@@ -192,7 +196,7 @@ export function useNativeChatSignIn(
     inFlight.current = true
     setTerminalSignIn(null)
     const ticket = ++attempt.current
-    setState({ identity, failureKey, busy: true, resolvedFor: null, announcement: '' })
+    setState({ identity, busy: true, resolved: false, announcement: '' })
     void (async () => {
       if (codexAccountId && sessionId) {
         await window.api.codexAccounts.reauthenticate({ accountId: codexAccountId, sessionId })
@@ -226,9 +230,8 @@ export function useNativeChatSignIn(
       inFlight.current = false
       setState({
         identity,
-        failureKey,
         busy: false,
-        resolvedFor: null,
+        resolved: false,
         announcement: translate(
           'components.native-chat.signIn.cancelled',
           'Sign-in cancelled or failed. Try again.'
@@ -237,7 +240,6 @@ export function useNativeChatSignIn(
     })
   }, [
     identity,
-    failureKey,
     codexAccountId,
     claudeAccountId,
     sessionId,
@@ -276,8 +278,7 @@ export function useNativeChatSignIn(
       retryCodexLookup
     ]
   )
-  const announcement =
-    state.identity === identity && state.failureKey === failureKey ? state.announcement : ''
+  const announcement = state.identity === identity ? state.announcement : ''
   return useMemo(
     () => ({ signIn: signInView, resolved, announcement }),
     [signInView, resolved, announcement]

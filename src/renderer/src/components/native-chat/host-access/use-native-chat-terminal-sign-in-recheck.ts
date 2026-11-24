@@ -34,11 +34,12 @@ export function useNativeChatTerminalSignInRecheck(
       checking = true
       do {
         checkAgain = false
+        const final = terminalEnded
         const signedIn = await checkSignIn(signIn.ticket).catch(() => false)
         if (cancelled) {
           return
         }
-        if (signedIn || (terminalEnded && !checkAgain)) {
+        if (final || (signedIn && !terminalEnded)) {
           finish(signIn.ticket, signedIn)
           return
         }

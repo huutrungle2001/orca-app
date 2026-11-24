@@ -116,18 +116,24 @@ export function createAgentModelCatalogService(
       live.providerStarted(record, source)
     },
     async read(params) {
-      const waits = !params.savedOnly && params.waitForListing
-      const relistStartedAt = waits && params.relist ? Date.now() : undefined
+      const waits = !params.savedOnly && (params.waitForListing || params.confirmSignIn)
       const deadline = params.deadline ?? Date.now() + AGENT_MODEL_CATALOG_PICKER_WAIT_MS
+      let signInConfirmed = false
       if (waits) {
         const operation = params.operation ?? captureRead({ ...params, deadline })
-        await waitForAgentModelCatalogRead({
-          params,
-          reader: { deadline, signal: operation.signal },
-          store: deps.store,
-          refresh: () => lookup.request(params, operation),
-          binding: () => bindings.get(requestKey(params))
-        })
+        if (params.confirmSignIn) {
+          const refresh = lookup.request(params, operation)
+          await waitWithinAgentModelCatalogRead(operation, refresh?.done)
+          signInConfirmed = operation.current() && refresh?.confirmedSignIn() === true
+        } else {
+          await waitForAgentModelCatalogRead({
+            params,
+            reader: { deadline, signal: operation.signal },
+            store: deps.store,
+            refresh: () => lookup.request(params, operation),
+            binding: () => bindings.get(requestKey(params))
+          })
+        }
       }
       const expired = waits && Date.now() >= deadline
       // Expiry ends the wait, but a still-current scope can describe the listing left behind.
@@ -149,14 +155,7 @@ export function createAgentModelCatalogService(
         // Expiring a reader cannot settle the listing, including for clients predating waitExpired.
         return { ...answer, waitExpired: true }
       }
-      return relistStartedAt !== undefined &&
-        result.origin === 'probe' &&
-        result.fetchedAt > relistStartedAt &&
-        result.fetchedAt <= Date.now() &&
-        !result.listingInProgress &&
-        !result.unavailable
-        ? { ...answer, freshProbe: true }
-        : answer
+      return signInConfirmed ? { ...answer, signInConfirmed: true } : answer
     },
     recordLiveListing: live.recordLiveListing,
     async prewarm() {

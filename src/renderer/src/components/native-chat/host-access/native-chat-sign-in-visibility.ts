@@ -26,8 +26,11 @@ export function createNativeChatSignInVisibility() {
     } else if (chosen) {
       publish(chosen[0], snapshot.banner)
     } else {
-      publish(ordered[0]?.[0] ?? null, snapshot.banner)
-      timer = setTimeout(() => publish(ordered[0]?.[0] ?? null, true), 300)
+      const selected = ordered[0]?.[0] ?? null
+      publish(selected, snapshot.banner)
+      if (!snapshot.banner) {
+        timer = setTimeout(() => publish(selected, true), 300)
+      }
     }
   }
   return {
@@ -39,7 +42,8 @@ export function createNativeChatSignInVisibility() {
     },
     read: () => snapshot,
     observe: (key: string, surface: NativeChatSignInSurface, element: Element) => {
-      candidates.set(key, { surface, visible: false, full: false })
+      const candidate = { surface, visible: false, full: false }
+      candidates.set(key, candidate)
       update()
       let root = element.parentElement
       while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) {
@@ -48,14 +52,11 @@ export function createNativeChatSignInVisibility() {
       const observer = new IntersectionObserver(
         (entries) => {
           const entry = entries.at(-1)
-          if (!entry || !candidates.has(key)) {
+          if (!entry || candidates.get(key) !== candidate) {
             return
           }
-          candidates.set(key, {
-            surface,
-            visible: entry.isIntersecting && entry.intersectionRatio > 0,
-            full: entry.isIntersecting && entry.intersectionRatio >= 1
-          })
+          candidate.visible = entry.isIntersecting && entry.intersectionRatio > 0
+          candidate.full = entry.isIntersecting && entry.intersectionRatio >= 1
           update()
         },
         { root, threshold: [0, 0.01, 1] }
@@ -63,14 +64,17 @@ export function createNativeChatSignInVisibility() {
       observer.observe(element)
       return () => {
         observer.disconnect()
-        candidates.delete(key)
-        update()
+        if (candidates.get(key) === candidate) {
+          candidates.delete(key)
+          update()
+        }
       }
     },
     dispose: () => {
       clearTimeout(timer)
       listeners.clear()
       candidates.clear()
+      snapshot = { selected: null, banner: true }
     }
   }
 }

@@ -89,7 +89,7 @@ export function nativeChatSignInNoticeView(
     }
   }
   const signIn = input.setup?.signIn
-  if (!signIn) {
+  if (!signIn || (input.account === 'managed' && entry?.agent === 'codex' && signIn.loginCommand)) {
     return null
   }
   if (signIn.signedIn) {

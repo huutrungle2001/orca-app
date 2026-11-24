@@ -144,18 +144,20 @@ export function NativeChatTranscriptSignInNotice({
   const agent = agentName ?? sayAgentSessionFailureTranslated('theAgent')
   const resolved = setup?.resolved || isNativeChatFailureRowResolved(setup, rowId)
   const eligible = !resolved && (!setup?.transcriptFailureId || setup.transcriptFailureId === rowId)
+  const recovery = eligible
+    ? nativeChatSignInNoticeView({ kind: 'notSignedIn', agent, account, setup }, t)
+    : null
   const anchor = useRef<HTMLDivElement>(null)
   const selected = useNativeChatSignInCandidate(
     'transcript',
     rowId,
-    Boolean(eligible && setup?.signIn),
+    Boolean(recovery?.button),
     anchor
   )
   const plain = setup?.signInInComposer || resolved || !eligible || !selected
-  const view = plain
-    ? null
-    : nativeChatSignInNoticeView({ kind: 'notSignedIn', agent, account, setup }, t)
-  if (!plain && !view) {
+  const view = plain ? null : recovery
+  // A mismatched recovery must not reach the legacy setup button in the fallback.
+  if (!plain && !view && !setup?.signIn) {
     return fallback(false)
   }
   return (
