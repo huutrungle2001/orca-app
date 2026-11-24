@@ -1,5 +1,6 @@
 // Window-only: this desktop's view of the agents shared with its Orca account, and its calls to their
-// hosts. No runtime RPC reaches this, so no paired client can act as this account's share.
+// hosts. No runtime RPC reaches these calls, so no paired client can act as this account's share; this
+// computer's own phones only ask for keys of their own (bots-share-phone.ts).
 import { BrowserWindow, ipcMain } from 'electron'
 import { z } from 'zod'
 import type { SharedBotHostsState } from '../../shared/bots/shared-bot-hosts'
@@ -32,6 +33,7 @@ export function registerSharedBotHostsHandlers(args: {
       return cloud ? sharedBotsCloud(cloud) : null
     },
     account: () => args.cloud()?.signedInAccount() ?? null,
+    connectorOrigin: () => args.cloud()?.origin() ?? null,
     publish: (state: SharedBotHostsState) => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.webContents.isDestroyed()) {

@@ -1,11 +1,12 @@
 // What a teammate's share connection may call: one bot's chats and nothing else on the host. Every
 // method names how the share guard admits it, so a method can't be allowed without its check.
 import { z } from 'zod'
+import { BOT_SHARE_PROVISION_PHONE_METHOD, BOT_SHARE_REVOKE_PHONE_METHOD } from './bot-share-phone'
 
 /** `chat`: the session it names must be one of the teammate's own chats on the shared bot.
  *  `bot`: the bot it names must be the shared bot; its handler lists only the teammate's chats.
  *  `scoped`: names nothing; its handler returns only the shared bot and the teammate's chats.
- *  `self`: bound to the caller's own connection (its Relay credential, its own uploads). */
+ *  `self`: bound to the caller's own connection (its Relay credential, its uploads, its phone). */
 export type BotShareMethodAccess =
   | { kind: 'chat'; sessionId: (params: unknown) => string | undefined }
   | { kind: 'bot'; botId: (params: unknown) => string | undefined }
@@ -66,5 +67,8 @@ export const BOT_SHARE_RPC_METHODS: ReadonlyMap<string, BotShareMethodAccess> = 
   ['agentSessionAttachment.uploadAbort', SELF],
   // Both bind to the socket's own device row.
   ['pairing.getEndpoints', SELF],
-  ['pairing.provisionRelay', SELF]
+  ['pairing.provisionRelay', SELF],
+  // A teammate's computer asks for and ends its own phone's key; refused to a phone's key.
+  [BOT_SHARE_PROVISION_PHONE_METHOD, SELF],
+  [BOT_SHARE_REVOKE_PHONE_METHOD, SELF]
 ])
