@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore, type RefObject } from 'react'
 import { useNativeChatHostSetupView, type NativeChatHostSetup } from './native-chat-host-setup-view'
 import type { NativeChatSignInSurface } from './native-chat-sign-in-visibility'
 
@@ -16,18 +16,19 @@ export function useNativeChatSignInVisibility(setup: NativeChatHostSetup | null)
 export function useNativeChatSignInCandidate(
   surface: NativeChatSignInSurface,
   failureId: string | undefined,
-  eligible: boolean
-) {
+  eligible: boolean,
+  anchor: RefObject<HTMLDivElement | null>
+): boolean {
   const setup = useNativeChatHostSetupView()
   const visible = useNativeChatSignInVisibility(setup)
-  const anchor = useRef<HTMLDivElement>(null)
   const key = `${surface}:${failureId ?? ''}`
   const visibility = setup?.visibility
   useEffect(() => {
     if (!eligible || !anchor.current || !visibility) {
       return
     }
-    return visibility.observe(key, surface, anchor.current)
-  }, [eligible, visibility, key, surface])
-  return { anchor, selected: !visible.selected || visible.selected === key }
+    const unobserve = visibility.observe(key, surface, anchor.current)
+    return () => unobserve()
+  }, [anchor, eligible, visibility, key, surface])
+  return !visible.selected || visible.selected === key
 }

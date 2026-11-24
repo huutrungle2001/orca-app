@@ -11,7 +11,7 @@ import {
 import { useNativeChatSignInCandidate } from '../host-access/use-native-chat-sign-in-visibility'
 import { QueuedMessageImageCount } from '@/components/native-chat/queue/NativeChatQueuedMessageImageCount'
 import type { QueuedMessageDragPresentation } from '@/components/native-chat/queue/NativeChatQueuedMessageRows'
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import {
   AlertCircle,
   ChevronDown,
@@ -112,14 +112,14 @@ export function NativeChatQueuedMessageCard({
     },
     t
   )
-  const candidate = useNativeChatSignInCandidate(
+  const signInAnchor = useRef<HTMLDivElement>(null)
+  const selected = useNativeChatSignInCandidate(
     'queue',
     card.messageId,
-    Boolean(auth && signIn && !setup?.resolved && !editor)
+    Boolean(auth && signIn && !setup?.resolved && !editor),
+    signInAnchor
   )
-  const showsSignIn = Boolean(
-    signIn && !setup?.resolved && !setup?.signInInComposer && candidate.selected
-  )
+  const showsSignIn = Boolean(signIn && !setup?.resolved && !setup?.signInInComposer && selected)
   const authRecovery = auth && signIn !== null
   const caption = queuedMessageCardCaption(card, agentName, statedFailures, t)
   const line = queuedMessageCardLine(card, nativeChatImageLabelCopy(t))
@@ -249,7 +249,7 @@ export function NativeChatQueuedMessageCard({
         />
       ) : null}
       <div
-        ref={candidate.anchor}
+        ref={signInAnchor}
         className={cn('flex items-center gap-1', authRecovery && 'flex-wrap')}
       >
         {!authRecovery || drag?.grip ? (

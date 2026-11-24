@@ -73,7 +73,7 @@ function watchSignInPty(tabId: string, worktreeId: string | null, onExit: () => 
     tabs: worktreeId ? state.tabsByWorktree[worktreeId] : undefined
   })
   const initial = read(useAppStore.getState())
-  let ptyId = initial.ptys?.[0]
+  let ptyId: string | undefined = initial.ptys?.[0]
   let seenTab = initial.tabs?.some((tab) => tab.id === tabId) ?? false
   return useAppStore.subscribe((state, previous) => {
     const { ptys, tabs } = read(state)

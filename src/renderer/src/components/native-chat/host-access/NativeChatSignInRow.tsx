@@ -1,4 +1,5 @@
 import { useNativeChatSignInCandidate } from './use-native-chat-sign-in-visibility'
+import { useRef } from 'react'
 import { AlertCircle, CircleCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -143,12 +144,14 @@ export function NativeChatTranscriptSignInNotice({
   const agent = agentName ?? sayAgentSessionFailureTranslated('theAgent')
   const resolved = setup?.resolved || isNativeChatFailureRowResolved(setup, rowId)
   const eligible = !resolved && (!setup?.transcriptFailureId || setup.transcriptFailureId === rowId)
-  const candidate = useNativeChatSignInCandidate(
+  const anchor = useRef<HTMLDivElement>(null)
+  const selected = useNativeChatSignInCandidate(
     'transcript',
     rowId,
-    Boolean(eligible && setup?.signIn)
+    Boolean(eligible && setup?.signIn),
+    anchor
   )
-  const plain = setup?.signInInComposer || resolved || !eligible || !candidate.selected
+  const plain = setup?.signInInComposer || resolved || !eligible || !selected
   const view = plain
     ? null
     : nativeChatSignInNoticeView({ kind: 'notSignedIn', agent, account, setup }, t)
@@ -156,7 +159,7 @@ export function NativeChatTranscriptSignInNotice({
     return fallback(false)
   }
   return (
-    <div ref={candidate.anchor} className={cn('min-w-0 space-y-2', className)}>
+    <div ref={anchor} className={cn('min-w-0 space-y-2', className)}>
       {view ? (
         <NativeChatSignInRow
           view={view}

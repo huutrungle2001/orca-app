@@ -5,6 +5,7 @@ import { useNativeChatHostSetup } from './native-chat-host-setup'
 import { NativeChatHostSetupContext } from './native-chat-host-setup-view'
 import { NativeChatTranscriptSignInNotice } from './NativeChatSignInRow'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import type { AppState } from '@/store/types'
 const { refresh, fetchSettings, modelCatalog } = vi.hoisted(() => ({
   refresh: vi.fn(),
   fetchSettings: vi.fn(async () => {}),
@@ -22,8 +23,8 @@ vi.mock('./native-chat-host-command-terminal', () => ({
 }))
 vi.mock('@/store/slices/runtime-status/views/use-runtime-status-view', () => ({
   useAppStoreWithHostStatuses: (
-    select: (settings: object, statuses: Map<string, never>) => unknown
-  ) => select({}, new Map())
+    select: (state: Pick<AppState, 'settings'>, statuses: Map<string, never>) => unknown
+  ) => select({ settings: null }, new Map<string, never>())
 }))
 vi.mock('@/runtime/native-chat/requests/structured-agent-session-call', () => ({
   callStructuredAgentSession: modelCatalog
