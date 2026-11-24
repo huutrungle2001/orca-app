@@ -55,6 +55,7 @@ export async function fillRecoveredTurn(
       ...(opener ? { openerItemId: opener.itemId } : {}),
       outcome,
       ...(record?.startedAt ? { postsSince: record.startedAt } : {}),
+      ...(record?.completedAt ? { postsUntil: record.completedAt } : {}),
       ...turnReplyOf(snapshot.items, turn.itemId, deps.isBot(sessionId)),
       links: [],
       ...(outcome === 'failure'

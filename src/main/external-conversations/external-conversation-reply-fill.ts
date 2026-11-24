@@ -41,6 +41,8 @@ export type EndedTurnReplies = {
   turnStartedAt?: number
   /** When the turn began by this app's clock, for its own post attempts when turnStartedAt is unknown. */
   postsSince?: number
+  /** When the turn ended by this app's clock: a post after it is a later turn's. */
+  postsUntil?: number
   /** The live turn end's, never boot recovery's: only it may retry an empty turn. */
   live?: true
   /** Who asked the turn and through what, from its opener: a retry asks for them. */

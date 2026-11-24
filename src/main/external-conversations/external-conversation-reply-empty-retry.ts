@@ -40,7 +40,9 @@ export type EmptyTurnRetry = {
   /** Holds an empty turn's rows for its one retry and sends it; false fills them as they are. */
   hold: (turn: EndedTurnReplies, own: readonly JournalConnectorReplyRow[]) => Promise<boolean>
   /** The chat tried a post of its own during the live turn: its earlier words aren't its answer. */
-  posted: (turn: Pick<EndedTurnReplies, 'sessionId' | 'turnStartedAt' | 'postsSince'>) => boolean
+  posted: (
+    turn: Pick<EndedTurnReplies, 'sessionId' | 'turnStartedAt' | 'postsSince' | 'postsUntil'>
+  ) => boolean
   /** A row held for a retry not yet sent: recovery leaves it. */
   sending: (row: Pick<JournalConnectorReplyRow, 'account' | 'deliveryId'>) => boolean
 }
@@ -51,15 +53,21 @@ const keyOf = (row: Pick<JournalConnectorReplyRow, 'account' | 'deliveryId'>) =>
 export function emptyTurnRetry(deps: {
   journal: () => ConnectorReplyCutJournal | null
   /** Whether the chat tried to post into Slack itself since `at` (ConnectorPostAttempts). */
-  postedSince: (sessionId: string, at: number) => boolean
+  postedSince: (sessionId: string, at: number, until: number) => boolean
   send: EmptyRetrySend
   /** The ask is settled: recovery reads the rows again (a refused ask closes them as no answer). */
   settled: (sessionId: string) => void
 }): EmptyTurnRetry {
   const sending = new Set<string>()
   // Recovery knows the turn's start from its record; with neither, any post since the app started.
-  const posted = (turn: Pick<EndedTurnReplies, 'sessionId' | 'turnStartedAt' | 'postsSince'>) =>
-    deps.postedSince(turn.sessionId, turn.turnStartedAt ?? turn.postsSince ?? 0)
+  const posted = (
+    turn: Pick<EndedTurnReplies, 'sessionId' | 'turnStartedAt' | 'postsSince' | 'postsUntil'>
+  ) =>
+    deps.postedSince(
+      turn.sessionId,
+      turn.turnStartedAt ?? turn.postsSince ?? 0,
+      turn.postsUntil ?? Number.POSITIVE_INFINITY
+    )
   return {
     posted,
     sending: (row) => sending.has(keyOf(row)),
@@ -239,7 +247,8 @@ export function liveEmptyTurnRetry(
   let settle: (sessionId: string) => void = () => {}
   const retry = emptyTurnRetry({
     journal,
-    postedSince: (sessionId, at) => connectorPostAttempts.since(chatPaneKey(sessionId), at),
+    postedSince: (sessionId, at, until) =>
+      connectorPostAttempts.since(chatPaneKey(sessionId), at, until),
     send: emptyRetrySend(chat, signal),
     settled: (sessionId) => {
       if (!signal.aborted) {

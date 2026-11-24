@@ -30,10 +30,10 @@ export class ConnectorPostAttempts {
     }
   }
 
-  /** Whether the chat tried a post, not taken back, at or after `at` (its ended turn's start). */
-  since(paneKey: string, at: number): boolean {
+  /** Whether the chat tried a post, not taken back, from `at` to `until` (its turn's start and end). */
+  since(paneKey: string, at: number, until = Number.POSITIVE_INFINITY): boolean {
     for (const attempt of this.attempts.get(paneKey) ?? []) {
-      if (attempt.at >= at) {
+      if (attempt.at >= at && attempt.at <= until) {
         return true
       }
     }

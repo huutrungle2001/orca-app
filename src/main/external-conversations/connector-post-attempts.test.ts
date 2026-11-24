@@ -23,4 +23,6 @@ it('takes back only a refused attempt, leaving earlier and later ones', () => {
   attempts.attempted('chat')
   late()
   expect(attempts.since('chat', 55)).toBe(true)
+  // A later turn's post never counts against an earlier turn that ended before it.
+  expect(attempts.since('chat', 45, 55)).toBe(false)
 })
