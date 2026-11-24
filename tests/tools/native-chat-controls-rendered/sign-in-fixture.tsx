@@ -60,6 +60,9 @@ const launchFailure: StructuredLaunchFailure = {
   details: { reason: 'notSignedIn', account: 'system' }
 }
 let launchRetries = 0
+const retryLaunch = () => {
+  launchRetries += 1
+}
 const lookups: PromiseWithResolvers<string | null>[] = []
 const probes: PromiseWithResolvers<{
   ok: true
@@ -208,9 +211,7 @@ function Pane({ managed, failure, send }: { managed: boolean; failure: number; s
         launch: {
           lifecycle: 'failed',
           failure: launchFailure,
-          retry: () => {
-            launchRetries += 1
-          }
+          retry: retryLaunch
         },
         agentLabel: 'Codex',
         sessionError: null,
