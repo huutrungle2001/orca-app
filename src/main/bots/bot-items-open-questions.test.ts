@@ -7,6 +7,7 @@ import {
   BOT_ITEM_EVENT_KINDS,
   botItemEventId,
   parseBotItemEventId,
+  type BotItem,
   type BotItemEvent
 } from '../../shared/bots/bot-items'
 import { botItemActivity, botItemNeedsYouEntryKey } from '../../shared/bots/bot-item-activity'
@@ -58,7 +59,10 @@ function item(path = ':memory:') {
   const comment = (text: string, questionEventId?: number, skipped?: number[]) =>
     store.ownerComment(uid, text, OWNER, [], NOW, undefined, questionEventId, false, [], skipped)
   // The item as the host's read gives it now: its question with its lines, and the ask waiting.
-  const hostItem = () => {
+  const hostItem = (): Pick<
+    BotItem,
+    'status' | 'question' | 'links' | 'lastEventId' | 'waitingAsk' | 'waitingAskRead'
+  > => {
     const row = store.get(uid)!
     const waitingAsk = store.viewRows([uid], true).waitingAsks[uid]
     return {
@@ -72,7 +76,9 @@ function item(path = ':memory:') {
             ),
       links: [],
       lastEventId: botItemEventId(row.lastEventId),
-      ...(waitingAsk ? { waitingAsk } : {})
+      ...(waitingAsk ? { waitingAsk } : {}),
+      // As the item's own view reads it: its waiting ask read, so none named means none waits.
+      waitingAskRead: true
     }
   }
   // What the item's view reads, from the host's item and the events loaded after `after`: the line
@@ -271,6 +277,31 @@ it('offers no reply target for an ask the item read, newer than the Activity, no
     questionId: undefined,
     plain: false,
     answers: undefined
+  })
+  expect(store.get(uid)?.status).toBe('working')
+})
+
+it('keeps an ask waiting when a newer read from a host that names no waiting ask moved the item on', () => {
+  const { store, uid, ask, comment, view, hostItem, boxSend } = item()
+  const asked = ask([HOSTS, GO])
+  const readUpTo = store.events(uid, 0, 200).at(-1)!.id
+  // A line answered moved the item on, the other still open; an older host's read says nothing of it.
+  comment(`${HOSTS} → Yes`, asked)
+  const { waitingAsk: _named, waitingAskRead: _read, ...olderHost } = hostItem()
+  expect(olderHost).toMatchObject({ status: 'working', question: null })
+  const read = view(0, readUpTo, olderHost)
+  expect(read.waitingAsk).toBe(botItemEventId(asked))
+  expect(read.lead).toBe(botItemEventId(asked))
+  expect(read.waitingComments).toEqual([botItemEventId(asked)])
+  // Its open line is still the one a typed answer goes to.
+  expect(view(0, undefined, olderHost).replyingTo).toMatchObject({
+    eventId: botItemEventId(asked),
+    line: GO
+  })
+  expect(boxSend('No', view(0, undefined, olderHost))).toEqual({
+    questionId: botItemEventId(asked),
+    plain: false,
+    answers: botItemEventId(asked)
   })
   expect(store.get(uid)?.status).toBe('working')
 })

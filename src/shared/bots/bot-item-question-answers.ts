@@ -135,10 +135,10 @@ function answeredLines(
 
 // Hosts keep the waiting ask this pairs: a change to what it pairs bumps WAITING_ASK_RULES
 // (src/main/bots/bot-item-waiting-ask-keep.ts), and one to what events can't change it updates waitingAskChange there.
-/** The item as a view read it: `waitingAsk`, `lastEventId` and `question` come from the host's read of
- *  the item, never from the host's own pairing. */
-export type BotItemPairingItem = Pick<BotItem, 'status' | 'waitingAsk'> &
-  Partial<Pick<BotItem, 'lastEventId' | 'question'>>
+/** The item as a view read it: `waitingAsk`, `waitingAskRead` and `lastEventId` come from the host's
+ *  read of the item, never from the host's own pairing. */
+export type BotItemPairingItem = Pick<BotItem, 'status' | 'waitingAsk' | 'waitingAskRead'> &
+  Partial<Pick<BotItem, 'lastEventId'>>
 
 export function botItemQuestionPairing(
   item: BotItemPairingItem,
@@ -218,7 +218,7 @@ export function botItemQuestionPairing(
   }
   // Only the latest ask waits, so each answer has one question to go to. Events read after the item
   // (a reopen and an ask since it closed) are the newer word on whether it is closed; read before it
-  // (an answer or a later ask since), their ask waits only while the item still names it.
+  // (an answer or a later ask since), their ask waits only while the item still has it waiting.
   const read = eventsRead(item, events)
   if (
     open?.entry.answers.includes(null) &&
@@ -246,12 +246,10 @@ function eventsRead(
   return read > last ? 'ahead' : 'behind'
 }
 
-/** The item's read names the ask still waiting: as its waiting ask, or, from a host that names none,
- *  as its question. */
+/** The item's newer read still has the ask waiting: it names it, or names none where the host read it.
+ *  An older host's read never names one, so it can't say the ask ended: it stands. */
 function itemNamesAsk(item: BotItemPairingItem, askId: string): boolean {
-  return item.waitingAsk === undefined
-    ? item.question?.eventId === askId
-    : item.waitingAsk === askId
+  return item.waitingAsk === undefined ? !item.waitingAskRead : item.waitingAsk === askId
 }
 
 /** The host's item names a later ask than the latest these events hold: they were read before it was

@@ -244,6 +244,9 @@ export type BotItem = {
    *  open, and can outlast the Needs you another ask's answer ended; the item's view reads back to it.
    *  Absent from older hosts and from lists. */
   waitingAsk?: string
+  /** The host read the waiting ask for this item (its own view): no `waitingAsk` then means none waits.
+   *  Absent from older hosts, whose missing `waitingAsk` says nothing, and from lists. */
+  waitingAskRead?: true
   closeNote: string | null
   /** Waiting: what it waits on, and when that was set. */
   wait: { text: string; at: number } | null

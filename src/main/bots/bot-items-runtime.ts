@@ -282,6 +282,7 @@ export class BotItemsHost {
           : null,
         question: question ? botItemQuestionView(botItemEventId(question.id), question.data) : null,
         ...(rows.waitingAsks[item.uid] ? { waitingAsk: rows.waitingAsks[item.uid] } : {}),
+        ...(withWaitingAsks ? { waitingAskRead: true as const } : {}),
         closeNote: summary ? null : item.closeNote,
         wait: wait && waitText !== null ? { text: waitText, at: wait.createdAt } : null,
         links: (rows.links[item.uid] ?? []).map((link) =>
